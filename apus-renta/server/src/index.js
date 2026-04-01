@@ -1,7 +1,6 @@
 require('dotenv').config();
 
 const express = require('express');
-const http = require('http');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,7 +8,6 @@ const morgan = require('morgan');
 
 const logger = require('./config/logger');
 const prisma = require('./config/database');
-const { initSocket } = require('./config/socket');
 
 // Import module routes
 const authRoutes = require('./modules/auth/auth.routes');
@@ -24,7 +22,6 @@ const alertsRoutes = require('./modules/alerts/alerts.routes');
 const auditRoutes = require('./modules/audit/audit.routes');
 
 const app = express();
-const server = http.createServer(app);
 
 // Middleware
 app.use(helmet());
@@ -41,11 +38,6 @@ app.use(morgan('combined', {
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Serve React build in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../../client/build')));
-}
-
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/tenants', tenantsRoutes);
@@ -59,7 +51,6 @@ app.use('/api/v1/alerts', alertsRoutes);
 app.use('/api/v1/audit', auditRoutes);
 
 // Note: React SPA fallback is handled by web.config (IIS rewrite rules)
-// No catch-all route needed here — Express 5 does not support '*' wildcard
 
 // Global error handler
 app.use((err, req, res, _next) => {
@@ -72,12 +63,9 @@ app.use((err, req, res, _next) => {
   });
 });
 
-// Initialize Socket.IO
-initSocket(server);
-
-// Start server
+// Start server — iisnode sets process.env.PORT via named pipe
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   logger.info(`Servidor APUS Renta ejecutandose en puerto ${PORT}`);
   logger.info(`Entorno: ${process.env.NODE_ENV || 'development'}`);
 });
@@ -85,11 +73,8 @@ server.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM recibido. Cerrando servidor...');
-  server.close(async () => {
-    await prisma.$disconnect();
-    logger.info('Servidor cerrado correctamente');
-    process.exit(0);
-  });
+  await prisma.$disconnect();
+  process.exit(0);
 });
 
-module.exports = { app, server };
+module.exports = app;
