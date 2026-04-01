@@ -110,7 +110,7 @@ async function create(data, tenantId) {
     const user = await tx.user.create({
       data: {
         email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         firstName,
         lastName,
         phone,
@@ -122,7 +122,6 @@ async function create(data, tenantId) {
     const tenantPerson = await tx.tenantPerson.create({
       data: {
         userId: user.id,
-        tenantId,
         documentType,
         documentNumber,
         emergencyContactName,
@@ -130,7 +129,7 @@ async function create(data, tenantId) {
       },
     });
 
-    const { password: _, ...userWithoutPassword } = user;
+    const { passwordHash: _, ...userWithoutPassword } = user;
     return { ...userWithoutPassword, tenantPerson };
   });
 
@@ -160,7 +159,7 @@ async function update(id, data, tenantId) {
     if (lastName !== undefined) userData.lastName = lastName;
     if (phone !== undefined) userData.phone = phone;
     if (password) {
-      userData.password = await bcrypt.hash(password, SALT_ROUNDS);
+      userData.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
     }
 
     const user = await tx.user.update({
@@ -183,7 +182,7 @@ async function update(id, data, tenantId) {
       });
     }
 
-    const { password: _, ...userWithoutPassword } = user;
+    const { passwordHash: _, ...userWithoutPassword } = user;
     return { ...userWithoutPassword, tenantPerson };
   });
 
@@ -209,7 +208,7 @@ async function remove(id, tenantId) {
     data: { status: 'INACTIVE' },
   });
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }
 

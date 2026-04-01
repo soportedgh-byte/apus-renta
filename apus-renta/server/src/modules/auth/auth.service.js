@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const prisma = require('../../config/database');
 
 const SALT_ROUNDS = 12;
@@ -21,7 +20,7 @@ async function register({ email, password, firstName, lastName, role, tenantId }
   const user = await prisma.user.create({
     data: {
       email,
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       firstName,
       lastName,
       role: role || 'ARRENDATARIO',
@@ -30,16 +29,17 @@ async function register({ email, password, firstName, lastName, role, tenantId }
   });
 
   // If the role is ARRENDATARIO, also create a TenantPerson record
-  if ((role || 'ARRENDATARIO') === 'ARRENDATARIO' && tenantId) {
+  if ((role || 'ARRENDATARIO') === 'ARRENDATARIO') {
     await prisma.tenantPerson.create({
       data: {
         userId: user.id,
-        tenantId,
+        documentType: 'CC',
+        documentNumber: '',
       },
     });
   }
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }
 
@@ -66,7 +66,7 @@ async function login({ email, password }) {
   }
 
   // Verify password
-  const isValid = await bcrypt.compare(password, user.password);
+  const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) {
     const failedAttempts = (user.failedLoginAttempts || 0) + 1;
     const updateData = { failedLoginAttempts: failedAttempts };
@@ -96,7 +96,7 @@ async function login({ email, password }) {
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, accessToken, refreshToken };
 }
 
@@ -140,7 +140,7 @@ async function getProfile(userId) {
     throw { status: 404, message: 'Usuario no encontrado' };
   }
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }
 
@@ -161,7 +161,7 @@ async function updateProfile(userId, data) {
     data: updateData,
   });
 
-  const { password: _, ...userWithoutPassword } = user;
+  const { passwordHash: _, ...userWithoutPassword } = user;
   return userWithoutPassword;
 }
 
@@ -174,7 +174,7 @@ async function changePassword(userId, currentPassword, newPassword) {
     throw { status: 404, message: 'Usuario no encontrado' };
   }
 
-  const isValid = await bcrypt.compare(currentPassword, user.password);
+  const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!isValid) {
     throw { status: 401, message: 'La contraseña actual es incorrecta' };
   }
@@ -182,7 +182,7 @@ async function changePassword(userId, currentPassword, newPassword) {
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await prisma.user.update({
     where: { id: userId },
-    data: { password: hashedPassword },
+    data: { passwordHash: hashedPassword },
   });
 
   return { message: 'Contraseña actualizada correctamente' };
@@ -192,26 +192,8 @@ async function changePassword(userId, currentPassword, newPassword) {
  * Generate a password reset token and send email (placeholder).
  */
 async function forgotPassword(email) {
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    // Return silently to prevent email enumeration
-    return { message: 'Si el correo existe, recibirá instrucciones para restablecer su contraseña' };
-  }
-
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      resetToken,
-      resetTokenExpiry,
-    },
-  });
-
-  // TODO: Send email with reset link containing the token
-  // await emailService.sendPasswordReset(user.email, resetToken);
-
+  // TODO: Implement password reset with email token
+  // For now, return a generic message to prevent email enumeration
   return { message: 'Si el correo existe, recibirá instrucciones para restablecer su contraseña' };
 }
 
@@ -219,31 +201,9 @@ async function forgotPassword(email) {
  * Reset password using a valid reset token.
  */
 async function resetPassword(token, password) {
-  const user = await prisma.user.findFirst({
-    where: {
-      resetToken: token,
-      resetTokenExpiry: { gt: new Date() },
-    },
-  });
-
-  if (!user) {
-    throw { status: 400, message: 'Token inválido o expirado' };
-  }
-
-  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password: hashedPassword,
-      resetToken: null,
-      resetTokenExpiry: null,
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-    },
-  });
-
-  return { message: 'Contraseña restablecida correctamente' };
+  // TODO: Implement token-based password reset
+  // Requires adding resetToken/resetTokenExpiry fields to Prisma schema
+  throw { status: 501, message: 'Funcionalidad de restablecimiento de contraseña aún no implementada' };
 }
 
 // --- Helpers ---
