@@ -4,21 +4,21 @@ const prisma = require('../../config/database');
  * Lista PQRS con filtros, paginacion y filtro por rol.
  */
 async function list(tenantId, userId, role, { page = 1, limit = 10, status, type, propertyId }) {
-  const where = { tenantId };
+  const where = { tenantId: Number(tenantId) };
 
   // Los arrendatarios solo ven sus propias PQRS
   if (role === 'ARRENDATARIO') {
-    where.userId = userId;
+    where.userId = Number(userId);
   }
 
   if (status) where.status = status;
   if (type) where.type = type;
-  if (propertyId) where.propertyId = parseInt(propertyId);
+  if (propertyId) where.propertyId = Number(propertyId);
 
   const skip = (page - 1) * limit;
 
   const [data, total] = await Promise.all([
-    prisma.pqrs.findMany({
+    prisma.pQRS.findMany({
       where,
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -26,21 +26,21 @@ async function list(tenantId, userId, role, { page = 1, limit = 10, status, type
         assignedUser: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
       skip,
-      take: parseInt(limit),
+      take: Number(limit),
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.pqrs.count({ where }),
+    prisma.pQRS.count({ where }),
   ]);
 
-  return { data, total, page: parseInt(page), limit: parseInt(limit) };
+  return { data, total, page: Number(page), limit: Number(limit) };
 }
 
 /**
  * Obtener una PQRS por ID.
  */
 async function getById(id) {
-  const pqrs = await prisma.pqrs.findUnique({
-    where: { id: parseInt(id) },
+  const pqrs = await prisma.pQRS.findUnique({
+    where: { id: Number(id) },
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
       property: { select: { id: true, name: true, address: true } },
@@ -66,11 +66,11 @@ async function create(data, userId, tenantId, files) {
     }
   }
 
-  const pqrs = await prisma.pqrs.create({
+  const pqrs = await prisma.pQRS.create({
     data: {
-      propertyId: parseInt(data.propertyId),
-      userId,
-      tenantId: parseInt(tenantId),
+      propertyId: Number(data.propertyId),
+      userId: Number(userId),
+      tenantId: Number(tenantId),
       type: data.type,
       subject: data.subject,
       description: data.description,
@@ -90,8 +90,8 @@ async function create(data, userId, tenantId, files) {
  * Actualizar estado y resolucion de una PQRS.
  */
 async function update(id, data, tenantId) {
-  const existing = await prisma.pqrs.findFirst({
-    where: { id: parseInt(id), tenantId: parseInt(tenantId) },
+  const existing = await prisma.pQRS.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
 
   if (!existing) {
@@ -102,8 +102,8 @@ async function update(id, data, tenantId) {
   if (data.status) updateData.status = data.status;
   if (data.resolution !== undefined) updateData.resolution = data.resolution;
 
-  const pqrs = await prisma.pqrs.update({
-    where: { id: parseInt(id) },
+  const pqrs = await prisma.pQRS.update({
+    where: { id: Number(id) },
     data: updateData,
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -119,17 +119,17 @@ async function update(id, data, tenantId) {
  * Asignar una PQRS a un usuario.
  */
 async function assign(id, assignedTo, tenantId) {
-  const existing = await prisma.pqrs.findFirst({
-    where: { id: parseInt(id), tenantId: parseInt(tenantId) },
+  const existing = await prisma.pQRS.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
 
   if (!existing) {
     throw { status: 404, message: 'PQRS no encontrada' };
   }
 
-  const pqrs = await prisma.pqrs.update({
-    where: { id: parseInt(id) },
-    data: { assignedTo: parseInt(assignedTo) },
+  const pqrs = await prisma.pQRS.update({
+    where: { id: Number(id) },
+    data: { assignedTo: Number(assignedTo) },
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
       property: { select: { id: true, name: true, address: true } },
@@ -144,15 +144,15 @@ async function assign(id, assignedTo, tenantId) {
  * Eliminar una PQRS (hard delete).
  */
 async function remove(id, tenantId) {
-  const existing = await prisma.pqrs.findFirst({
-    where: { id: parseInt(id), tenantId: parseInt(tenantId) },
+  const existing = await prisma.pQRS.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
 
   if (!existing) {
     throw { status: 404, message: 'PQRS no encontrada' };
   }
 
-  await prisma.pqrs.delete({ where: { id: parseInt(id) } });
+  await prisma.pQRS.delete({ where: { id: Number(id) } });
 
   return { message: 'PQRS eliminada exitosamente' };
 }

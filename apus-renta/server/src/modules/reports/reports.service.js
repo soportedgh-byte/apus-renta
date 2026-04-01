@@ -6,6 +6,7 @@ const { generatePDF } = require('../../utils/pdf');
  * Dashboard KPIs y datos resumidos para el propietario/encargado.
  */
 async function getDashboard(tenantId) {
+  tenantId = Number(tenantId);
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -41,13 +42,13 @@ async function getDashboard(tenantId) {
     prisma.payment.aggregate({
       _sum: { amount: true },
       where: {
-        tenantId,
+        lease: { tenantId },
         status: 'APROBADO',
         paymentDate: { gte: startOfMonth, lte: endOfMonth },
       },
     }),
     prisma.payment.count({
-      where: { tenantId, status: 'PENDIENTE' },
+      where: { lease: { tenantId }, status: 'PENDIENTE' },
     }),
     prisma.alert.count({
       where: { tenantId, status: 'PENDIENTE' },
@@ -56,7 +57,7 @@ async function getDashboard(tenantId) {
       where: { tenantId, status: { in: ['RADICADA', 'EN_PROCESO'] } },
     }),
     prisma.payment.findMany({
-      where: { tenantId },
+      where: { lease: { tenantId } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: {
@@ -100,7 +101,7 @@ async function getDashboard(tenantId) {
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: {
-          tenantId,
+          lease: { tenantId },
           status: 'APROBADO',
           paymentDate: { gte: mStart, lte: mEnd },
         },
@@ -136,7 +137,8 @@ async function getDashboard(tenantId) {
  * Reporte de ingresos agrupado por mes y propiedad.
  */
 async function getIncomeReport(tenantId, { startDate, endDate, propertyId } = {}) {
-  const where = { tenantId, status: 'APROBADO' };
+  tenantId = Number(tenantId);
+  const where = { lease: { tenantId }, status: 'APROBADO' };
 
   if (startDate || endDate) {
     where.paymentDate = {};
@@ -145,7 +147,7 @@ async function getIncomeReport(tenantId, { startDate, endDate, propertyId } = {}
   }
 
   if (propertyId) {
-    where.lease = { propertyId: Number(propertyId) };
+    where.lease = { tenantId, propertyId: Number(propertyId) };
   }
 
   const payments = await prisma.payment.findMany({
@@ -195,6 +197,7 @@ async function getIncomeReport(tenantId, { startDate, endDate, propertyId } = {}
  * Reporte de ocupacion de propiedades.
  */
 async function getOccupancyReport(tenantId) {
+  tenantId = Number(tenantId);
   const properties = await prisma.property.findMany({
     where: { tenantId },
     include: {
@@ -251,7 +254,8 @@ async function getOccupancyReport(tenantId) {
  * Reporte detallado de pagos con filtros.
  */
 async function getPaymentsReport(tenantId, { startDate, endDate, status, propertyId, page = 1, limit = 50 } = {}) {
-  const where = { tenantId };
+  tenantId = Number(tenantId);
+  const where = { lease: { tenantId } };
 
   if (startDate || endDate) {
     where.paymentDate = {};
@@ -259,7 +263,7 @@ async function getPaymentsReport(tenantId, { startDate, endDate, status, propert
     if (endDate) where.paymentDate.lte = new Date(endDate);
   }
   if (status) where.status = status;
-  if (propertyId) where.lease = { propertyId: Number(propertyId) };
+  if (propertyId) where.lease = { tenantId, propertyId: Number(propertyId) };
 
   const [payments, total] = await Promise.all([
     prisma.payment.findMany({
@@ -297,6 +301,7 @@ async function getPaymentsReport(tenantId, { startDate, endDate, status, propert
  * Exportar reporte a PDF.
  */
 async function exportReport(tenantId, type, filters = {}) {
+  tenantId = Number(tenantId);
   let title = '';
   let bodyHtml = '';
 

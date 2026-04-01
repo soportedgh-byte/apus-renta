@@ -13,11 +13,11 @@ async function list(tenantId, userId, role, { page = 1, limit = 10, status, leas
   const where = {};
 
   // Filtrar por contratos del tenant
-  where.lease = { tenantId };
+  where.lease = { tenantId: Number(tenantId) };
 
   // Si es ARRENDATARIO, solo ve sus propios pagos
   if (role === 'ARRENDATARIO') {
-    where.userId = userId;
+    where.userId = Number(userId);
   }
 
   if (status) {
@@ -60,7 +60,7 @@ async function getById(id, tenantId) {
   const payment = await prisma.payment.findFirst({
     where: {
       id: Number(id),
-      lease: { tenantId },
+      lease: { tenantId: Number(tenantId) },
     },
     include: {
       lease: {
@@ -86,7 +86,7 @@ async function create(data, userId, tenantId, file) {
 
   // Verificar que el contrato pertenece al tenant
   const lease = await prisma.lease.findFirst({
-    where: { id: Number(leaseId), tenantId },
+    where: { id: Number(leaseId), tenantId: Number(tenantId) },
   });
   if (!lease) {
     throw { status: 404, message: 'Contrato no encontrado o no pertenece a su organizacion' };
@@ -94,7 +94,7 @@ async function create(data, userId, tenantId, file) {
 
   const paymentData = {
     leaseId: Number(leaseId),
-    userId,
+    userId: Number(userId),
     amount: parseFloat(amount),
     paymentDate: new Date(paymentDate),
     method,
@@ -125,7 +125,7 @@ async function approve(id, userId, tenantId) {
   const payment = await prisma.payment.findFirst({
     where: {
       id: Number(id),
-      lease: { tenantId },
+      lease: { tenantId: Number(tenantId) },
     },
     include: {
       lease: { include: { property: true } },
@@ -143,7 +143,7 @@ async function approve(id, userId, tenantId) {
 
   // Obtener datos del aprobador
   const approver = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: Number(userId) },
     select: { id: true, firstName: true, lastName: true, email: true },
   });
 
@@ -153,7 +153,7 @@ async function approve(id, userId, tenantId) {
     where: { id: Number(id) },
     data: {
       status: 'APROBADO',
-      approvedBy: userId,
+      approvedBy: Number(userId),
       approvedAt: now,
     },
     include: {
@@ -184,7 +184,7 @@ async function reject(id, userId, tenantId, reason) {
   const payment = await prisma.payment.findFirst({
     where: {
       id: Number(id),
-      lease: { tenantId },
+      lease: { tenantId: Number(tenantId) },
     },
   });
 

@@ -4,7 +4,7 @@ const prisma = require('../../config/database');
  * Lista alertas con filtros y paginacion.
  */
 async function list(tenantId, { page = 1, limit = 10, type, status }) {
-  const where = { tenantId: parseInt(tenantId) };
+  const where = { tenantId: Number(tenantId) };
 
   if (type) where.type = type;
   if (status) where.status = status;
@@ -15,13 +15,13 @@ async function list(tenantId, { page = 1, limit = 10, type, status }) {
     prisma.alert.findMany({
       where,
       skip,
-      take: parseInt(limit),
+      take: Number(limit),
       orderBy: { createdAt: 'desc' },
     }),
     prisma.alert.count({ where }),
   ]);
 
-  return { data, total, page: parseInt(page), limit: parseInt(limit) };
+  return { data, total, page: Number(page), limit: Number(limit) };
 }
 
 /**
@@ -29,7 +29,7 @@ async function list(tenantId, { page = 1, limit = 10, type, status }) {
  */
 async function getConfig(tenantId) {
   const tenant = await prisma.tenant.findUnique({
-    where: { id: parseInt(tenantId) },
+    where: { id: Number(tenantId) },
     select: { configJson: true },
   });
 
@@ -54,7 +54,7 @@ async function getConfig(tenantId) {
  */
 async function updateConfig(tenantId, alertConfig) {
   const tenant = await prisma.tenant.findUnique({
-    where: { id: parseInt(tenantId) },
+    where: { id: Number(tenantId) },
     select: { configJson: true },
   });
 
@@ -66,7 +66,7 @@ async function updateConfig(tenantId, alertConfig) {
   config.alerts = alertConfig;
 
   await prisma.tenant.update({
-    where: { id: parseInt(tenantId) },
+    where: { id: Number(tenantId) },
     data: { configJson: config },
   });
 
@@ -79,7 +79,7 @@ async function updateConfig(tenantId, alertConfig) {
 async function sendTest(tenantId, channel) {
   const alert = await prisma.alert.create({
     data: {
-      tenantId: parseInt(tenantId),
+      tenantId: Number(tenantId),
       type: 'TEST',
       title: 'Alerta de prueba',
       message: `Esta es una alerta de prueba enviada por el canal: ${channel || 'sistema'}`,

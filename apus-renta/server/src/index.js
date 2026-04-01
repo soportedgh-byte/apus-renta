@@ -20,6 +20,7 @@ const pqrsRoutes = require('./modules/pqrs/pqrs.routes');
 const reportsRoutes = require('./modules/reports/reports.routes');
 const alertsRoutes = require('./modules/alerts/alerts.routes');
 const auditRoutes = require('./modules/audit/audit.routes');
+const settingsRoutes = require('./modules/settings/settings.routes');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/v1/pqrs', pqrsRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/alerts', alertsRoutes);
 app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 // Note: React SPA fallback is handled by web.config (IIS rewrite rules)
 

@@ -11,7 +11,7 @@ async function list(tenantId, { page = 1, limit = 10, search } = {}) {
 
   const where = {
     role: 'ARRENDATARIO',
-    tenantId,
+    tenantId: Number(tenantId),
   };
 
   if (search) {
@@ -56,7 +56,7 @@ async function list(tenantId, { page = 1, limit = 10, search } = {}) {
  */
 async function getById(id, tenantId) {
   const user = await prisma.user.findUnique({
-    where: { id },
+    where: { id: Number(id) },
     select: {
       id: true,
       email: true,
@@ -81,9 +81,9 @@ async function getById(id, tenantId) {
     throw { status: 404, message: 'Arrendatario no encontrado' };
   }
 
-  if (user.tenantId !== undefined && user.tenantId !== tenantId) {
+  if (user.tenantId !== undefined && user.tenantId !== Number(tenantId)) {
     // Verificar que pertenece al mismo tenant via tenantPerson
-    const belongsToTenant = user.tenantPerson && user.tenantPerson.tenantId === tenantId;
+    const belongsToTenant = user.tenantPerson && user.tenantPerson.tenantId === Number(tenantId);
     if (!belongsToTenant) {
       throw { status: 403, message: 'No tiene permisos para ver este arrendatario' };
     }
@@ -115,7 +115,7 @@ async function create(data, tenantId) {
         lastName,
         phone,
         role: 'ARRENDATARIO',
-        tenantId,
+        tenantId: Number(tenantId),
       },
     });
 
@@ -141,7 +141,7 @@ async function create(data, tenantId) {
  */
 async function update(id, data, tenantId) {
   const existingUser = await prisma.user.findUnique({
-    where: { id },
+    where: { id: Number(id) },
     include: { tenantPerson: true },
   });
 
@@ -163,7 +163,7 @@ async function update(id, data, tenantId) {
     }
 
     const user = await tx.user.update({
-      where: { id },
+      where: { id: Number(id) },
       data: userData,
     });
 
@@ -193,18 +193,18 @@ async function update(id, data, tenantId) {
  * Soft delete: marcar arrendatario como INACTIVE.
  */
 async function remove(id, tenantId) {
-  const existing = await prisma.user.findUnique({ where: { id } });
+  const existing = await prisma.user.findUnique({ where: { id: Number(id) } });
 
   if (!existing) {
     throw { status: 404, message: 'Arrendatario no encontrado' };
   }
 
-  if (existing.tenantId !== tenantId) {
+  if (existing.tenantId !== Number(tenantId)) {
     throw { status: 403, message: 'No tiene permisos para eliminar este arrendatario' };
   }
 
   const user = await prisma.user.update({
-    where: { id },
+    where: { id: Number(id) },
     data: { status: 'INACTIVE' },
   });
 

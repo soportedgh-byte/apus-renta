@@ -1,21 +1,11 @@
 const prisma = require('../../config/database');
 
-/**
- * Listar propiedades con filtros y paginacion.
- */
 async function list(tenantId, { page = 1, limit = 10, status, type, search } = {}) {
-  const skip = (page - 1) * limit;
-
-  const where = { tenantId };
-
-  if (status) {
-    where.status = status;
-  }
-
-  if (type) {
-    where.type = type;
-  }
-
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+  const where = { tenantId: Number(tenantId) };
+  if (status) where.status = status;
+  if (type) where.type = type;
   if (search) {
     where.OR = [
       { name: { contains: search } },
@@ -25,157 +15,100 @@ async function list(tenantId, { page = 1, limit = 10, status, type, search } = {
 
   const [properties, total] = await Promise.all([
     prisma.property.findMany({
-      where,
-      skip,
-      take: Number(limit),
-      include: {
-        _count: {
-          select: { leases: true },
-        },
-      },
+      where, skip, take,
+      include: { _count: { select: { leases: true } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.property.count({ where }),
   ]);
-
-  return { properties, total, page: Number(page), limit: Number(limit) };
+  return { properties, total, page: Number(page), limit: take };
 }
 
-/**
- * Obtener propiedad por ID con relaciones.
- */
 async function getById(id, tenantId) {
-  const property = await prisma.property.findUnique({
-    where: { id },
+  const property = await prisma.property.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
     include: {
       leases: {
         include: {
           tenantPerson: {
-            include: { user: true },
+            include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
           },
         },
       },
-      utilityBills: true,
+      utilityBills: { orderBy: { createdAt: 'desc' }, take: 10 },
     },
   });
-
-  if (!property) {
-    throw { status: 404, message: 'Propiedad no encontrada' };
-  }
-
-  if (property.tenantId !== tenantId) {
-    throw { status: 403, message: 'No tiene permisos para ver esta propiedad' };
-  }
-
+  if (!property) throw { status: 404, message: 'Propiedad no encontrada' };
   return property;
 }
 
-/**
- * Crear una nueva propiedad.
- */
 async function create(data, tenantId, files = []) {
-  const photos = files.map((file) => file.path);
-
-  const property = await prisma.property.create({
+  const photos = files.map((f) => f.path.replace(/\\/g, '/'));
+  return prisma.property.create({
     data: {
-      ...data,
-      area: data.area ? parseFloat(data.area) : undefined,
-      bedrooms: data.bedrooms ? parseInt(data.bedrooms, 10) : undefined,
-      bathrooms: data.bathrooms ? parseInt(data.bathrooms, 10) : undefined,
-      monthlyRent: data.monthlyRent ? parseFloat(data.monthlyRent) : undefined,
-      photos,
-      tenantId,
+      tenantId: Number(tenantId),
+      name: data.name,
+      type: data.type,
+      address: data.address,
+      city: data.city,
+      state: data.state || 'Cesar',
+      country: data.country || 'Colombia',
+      area: data.area ? parseFloat(data.area) : null,
+      bedrooms: data.bedrooms ? parseInt(data.bedrooms) : null,
+      bathrooms: data.bathrooms ? parseInt(data.bathrooms) : null,
+      description: data.description || null,
+      status: data.status || 'DISPONIBLE',
+      photos: photos.length > 0 ? photos : [],
+      monthlyRent: parseFloat(data.monthlyRent) || 0,
     },
   });
-
-  return property;
 }
 
-/**
- * Actualizar una propiedad existente.
- */
 async function update(id, data, tenantId, files = []) {
   const existing = await prisma.property.findFirst({
-    where: { id, tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
+  if (!existing) throw { status: 404, message: 'Propiedad no encontrada' };
 
-  if (!existing) {
-    throw { status: 404, message: 'Propiedad no encontrada o no tiene permisos' };
+  const updateData = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.type !== undefined) updateData.type = data.type;
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.city !== undefined) updateData.city = data.city;
+  if (data.state !== undefined) updateData.state = data.state;
+  if (data.area !== undefined) updateData.area = parseFloat(data.area);
+  if (data.bedrooms !== undefined) updateData.bedrooms = parseInt(data.bedrooms);
+  if (data.bathrooms !== undefined) updateData.bathrooms = parseInt(data.bathrooms);
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.monthlyRent !== undefined) updateData.monthlyRent = parseFloat(data.monthlyRent);
+
+  if (files && files.length > 0) {
+    const newPhotos = files.map((f) => f.path.replace(/\\/g, '/'));
+    const existingPhotos = Array.isArray(existing.photos) ? existing.photos : [];
+    updateData.photos = [...existingPhotos, ...newPhotos];
   }
 
-  const newPhotos = files.map((file) => file.path);
-  const photos = [...(existing.photos || []), ...newPhotos];
-
-  const updateData = { ...data, photos };
-
-  if (updateData.area) updateData.area = parseFloat(updateData.area);
-  if (updateData.bedrooms) updateData.bedrooms = parseInt(updateData.bedrooms, 10);
-  if (updateData.bathrooms) updateData.bathrooms = parseInt(updateData.bathrooms, 10);
-  if (updateData.monthlyRent) updateData.monthlyRent = parseFloat(updateData.monthlyRent);
-
-  // Remover campos que no deben actualizarse directamente
-  delete updateData.tenantId;
-
-  const property = await prisma.property.update({
-    where: { id },
-    data: updateData,
-  });
-
-  return property;
+  return prisma.property.update({ where: { id: Number(id) }, data: updateData });
 }
 
-/**
- * Eliminar una propiedad.
- * Si tiene contratos activos, realiza soft delete cambiando el estado.
- */
 async function remove(id, tenantId) {
   const existing = await prisma.property.findFirst({
-    where: { id, tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
     include: { _count: { select: { leases: true } } },
   });
-
-  if (!existing) {
-    throw { status: 404, message: 'Propiedad no encontrada o no tiene permisos' };
-  }
-
-  if (existing._count.leases > 0) {
-    // Soft delete: marcar como inactiva si tiene contratos
-    const property = await prisma.property.update({
-      where: { id },
-      data: { status: 'MANTENIMIENTO' },
-    });
-    return { property, softDeleted: true };
-  }
-
-  await prisma.property.delete({ where: { id } });
-  return { deleted: true };
+  if (!existing) throw { status: 404, message: 'Propiedad no encontrada' };
+  if (existing._count.leases > 0) throw { status: 400, message: 'No se puede eliminar, tiene contratos asociados' };
+  await prisma.property.delete({ where: { id: Number(id) } });
+  return { message: 'Propiedad eliminada' };
 }
 
-/**
- * Actualizar solo el estado de una propiedad.
- */
 async function updateStatus(id, status, tenantId) {
   const existing = await prisma.property.findFirst({
-    where: { id, tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
-
-  if (!existing) {
-    throw { status: 404, message: 'Propiedad no encontrada o no tiene permisos' };
-  }
-
-  const property = await prisma.property.update({
-    where: { id },
-    data: { status },
-  });
-
-  return property;
+  if (!existing) throw { status: 404, message: 'Propiedad no encontrada' };
+  return prisma.property.update({ where: { id: Number(id) }, data: { status } });
 }
 
-module.exports = {
-  list,
-  getById,
-  create,
-  update,
-  delete: remove,
-  updateStatus,
-};
+module.exports = { list, getById, create, update, remove, updateStatus };

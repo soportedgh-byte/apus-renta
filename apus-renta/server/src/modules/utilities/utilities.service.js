@@ -4,9 +4,9 @@ const prisma = require('../../config/database');
  * Lista servicios publicos con filtros y paginacion.
  */
 async function list(tenantId, { page = 1, limit = 10, propertyId, type, status, period }) {
-  const where = { tenantId };
+  const where = { tenantId: Number(tenantId) };
 
-  if (propertyId) where.propertyId = parseInt(propertyId);
+  if (propertyId) where.propertyId = Number(propertyId);
   if (type) where.type = type;
   if (status) where.status = status;
   if (period) where.period = period;
@@ -18,13 +18,13 @@ async function list(tenantId, { page = 1, limit = 10, propertyId, type, status, 
       where,
       include: { property: true },
       skip,
-      take: parseInt(limit),
+      take: Number(limit),
       orderBy: { createdAt: 'desc' },
     }),
     prisma.utility.count({ where }),
   ]);
 
-  return { data, total, page: parseInt(page), limit: parseInt(limit) };
+  return { data, total, page: Number(page), limit: Number(limit) };
 }
 
 /**
@@ -35,7 +35,7 @@ async function getSummary(tenantId) {
 
   // Obtener todas las propiedades del tenant
   const properties = await prisma.property.findMany({
-    where: { tenantId },
+    where: { tenantId: Number(tenantId) },
     select: { id: true, name: true },
   });
 
@@ -54,7 +54,7 @@ async function getSummary(tenantId) {
     for (const type of utilityTypes) {
       const latest = await prisma.utility.findFirst({
         where: {
-          tenantId,
+          tenantId: Number(tenantId),
           propertyId: property.id,
           type,
         },
@@ -98,7 +98,7 @@ async function getSummary(tenantId) {
  */
 async function getById(id) {
   const utility = await prisma.utility.findUnique({
-    where: { id: parseInt(id) },
+    where: { id: Number(id) },
     include: { property: true },
   });
 
@@ -114,8 +114,8 @@ async function getById(id) {
  */
 async function create(data, file) {
   const createData = {
-    propertyId: parseInt(data.propertyId),
-    tenantId: data.tenantId ? parseInt(data.tenantId) : undefined,
+    propertyId: Number(data.propertyId),
+    tenantId: Number(data.tenantId),
     type: data.type,
     amount: parseFloat(data.amount),
     period: data.period,
@@ -139,7 +139,7 @@ async function create(data, file) {
  * Actualizar un servicio publico.
  */
 async function update(id, data) {
-  const existing = await prisma.utility.findUnique({ where: { id: parseInt(id) } });
+  const existing = await prisma.utility.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
@@ -149,7 +149,7 @@ async function update(id, data) {
   if (data.status !== undefined) updateData.status = data.status;
 
   const utility = await prisma.utility.update({
-    where: { id: parseInt(id) },
+    where: { id: Number(id) },
     data: updateData,
     include: { property: true },
   });
@@ -161,13 +161,13 @@ async function update(id, data) {
  * Actualizar solo el estado de un servicio publico.
  */
 async function updateStatus(id, status) {
-  const existing = await prisma.utility.findUnique({ where: { id: parseInt(id) } });
+  const existing = await prisma.utility.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
 
   const utility = await prisma.utility.update({
-    where: { id: parseInt(id) },
+    where: { id: Number(id) },
     data: { status },
     include: { property: true },
   });

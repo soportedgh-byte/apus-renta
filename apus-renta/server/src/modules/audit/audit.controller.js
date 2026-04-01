@@ -15,6 +15,7 @@ async function list(req, res) {
     });
     return paginated(res, data.logs, data.page, data.limit, data.total);
   } catch (err) {
+    console.error('Audit.list error:', err);
     return error(res, err.message || 'Error al obtener logs de auditoria', err.status || 500);
   }
 }
@@ -24,6 +25,7 @@ async function getStats(req, res) {
     const data = await auditService.getStats(req.user.tenantId);
     return success(res, data, 'Estadisticas de auditoria obtenidas exitosamente');
   } catch (err) {
+    console.error('Audit.getStats error:', err);
     return error(res, err.message || 'Error al obtener estadisticas de auditoria', err.status || 500);
   }
 }

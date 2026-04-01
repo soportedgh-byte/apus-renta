@@ -4,7 +4,7 @@ const prisma = require('../../config/database');
  * Listar logs de auditoria con filtros y paginacion.
  */
 async function list(tenantId, { page = 1, limit = 20, userId, action, entity, startDate, endDate } = {}) {
-  const where = { tenantId };
+  const where = { tenantId: Number(tenantId) };
 
   if (userId) where.userId = Number(userId);
   if (action) where.action = action;
@@ -44,7 +44,7 @@ async function getStats(tenantId) {
   const byAction = await prisma.auditLog.groupBy({
     by: ['action'],
     _count: { id: true },
-    where: { tenantId },
+    where: { tenantId: Number(tenantId) },
     orderBy: { _count: { id: 'desc' } },
   });
 
@@ -52,7 +52,7 @@ async function getStats(tenantId) {
   const byEntity = await prisma.auditLog.groupBy({
     by: ['entity'],
     _count: { id: true },
-    where: { tenantId },
+    where: { tenantId: Number(tenantId) },
     orderBy: { _count: { id: 'desc' } },
   });
 
@@ -60,7 +60,7 @@ async function getStats(tenantId) {
   const byUser = await prisma.auditLog.groupBy({
     by: ['userId'],
     _count: { id: true },
-    where: { tenantId },
+    where: { tenantId: Number(tenantId) },
     orderBy: { _count: { id: 'desc' } },
     take: 10,
   });
@@ -82,7 +82,7 @@ async function getStats(tenantId) {
   // Recent critical actions (CREATE, DELETE, UPDATE on sensitive entities)
   const criticalActions = await prisma.auditLog.findMany({
     where: {
-      tenantId,
+      tenantId: Number(tenantId),
       action: { in: ['DELETE', 'UPDATE_STATUS', 'APPROVE', 'REJECT'] },
     },
     include: {
@@ -107,11 +107,11 @@ async function getStats(tenantId) {
 async function log({ tenantId, userId, action, entity, entityId, details, ipAddress, userAgent }) {
   return prisma.auditLog.create({
     data: {
-      tenantId,
-      userId,
+      tenantId: Number(tenantId),
+      userId: Number(userId),
       action,
       entity,
-      entityId: entityId || 0,
+      entityId: entityId ? Number(entityId) : 0,
       details: details || undefined,
       ipAddress: ipAddress || null,
       userAgent: userAgent ? String(userAgent).substring(0, 500) : null,

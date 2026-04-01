@@ -6,7 +6,7 @@ const prisma = require('../../config/database');
 async function list(tenantId, { page = 1, limit = 10, status, propertyId, userRole, userId }) {
   const skip = (page - 1) * limit;
 
-  const where = { tenantId };
+  const where = { tenantId: Number(tenantId) };
 
   if (status) {
     where.status = status;
@@ -19,7 +19,7 @@ async function list(tenantId, { page = 1, limit = 10, status, propertyId, userRo
   // Si el usuario es ARRENDATARIO, solo ve sus propios contratos
   if (userRole === 'ARRENDATARIO') {
     const tenantPerson = await prisma.tenantPerson.findFirst({
-      where: { userId, tenantId },
+      where: { userId: Number(userId), tenantId: Number(tenantId) },
     });
     if (tenantPerson) {
       where.tenantPersonId = tenantPerson.id;
@@ -52,7 +52,7 @@ async function list(tenantId, { page = 1, limit = 10, status, propertyId, userRo
  */
 async function getById(id, tenantId) {
   const lease = await prisma.lease.findFirst({
-    where: { id: Number(id), tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
     include: {
       property: true,
       tenantPerson: {
@@ -79,7 +79,7 @@ async function create(data, tenantId) {
 
   // Verificar que la propiedad pertenece al tenant
   const property = await prisma.property.findFirst({
-    where: { id: Number(propertyId), tenantId },
+    where: { id: Number(propertyId), tenantId: Number(tenantId) },
   });
   if (!property) {
     throw { status: 404, message: 'Propiedad no encontrada o no pertenece a su organizacion' };
@@ -87,7 +87,7 @@ async function create(data, tenantId) {
 
   // Verificar que el arrendatario existe
   const tenantPerson = await prisma.tenantPerson.findFirst({
-    where: { id: Number(tenantPersonId), tenantId },
+    where: { id: Number(tenantPersonId), tenantId: Number(tenantId) },
   });
   if (!tenantPerson) {
     throw { status: 404, message: 'Arrendatario no encontrado o no pertenece a su organizacion' };
@@ -97,7 +97,7 @@ async function create(data, tenantId) {
     data: {
       propertyId: Number(propertyId),
       tenantPersonId: Number(tenantPersonId),
-      tenantId,
+      tenantId: Number(tenantId),
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       monthlyRent: parseFloat(monthlyRent),
@@ -121,7 +121,7 @@ async function create(data, tenantId) {
  */
 async function update(id, data, tenantId) {
   const existing = await prisma.lease.findFirst({
-    where: { id: Number(id), tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
   if (!existing) {
     throw { status: 404, message: 'Contrato no encontrado' };
@@ -155,7 +155,7 @@ async function update(id, data, tenantId) {
  */
 async function updateStatus(id, status, tenantId) {
   const lease = await prisma.lease.findFirst({
-    where: { id: Number(id), tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
   if (!lease) {
     throw { status: 404, message: 'Contrato no encontrado' };
@@ -193,7 +193,7 @@ async function updateStatus(id, status, tenantId) {
  */
 async function sendToSign(id, tenantId) {
   const lease = await prisma.lease.findFirst({
-    where: { id: Number(id), tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
   if (!lease) {
     throw { status: 404, message: 'Contrato no encontrado' };
@@ -215,7 +215,7 @@ async function sendToSign(id, tenantId) {
  */
 async function remove(id, tenantId) {
   const lease = await prisma.lease.findFirst({
-    where: { id: Number(id), tenantId },
+    where: { id: Number(id), tenantId: Number(tenantId) },
   });
   if (!lease) {
     throw { status: 404, message: 'Contrato no encontrado' };

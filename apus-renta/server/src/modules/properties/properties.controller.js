@@ -1,71 +1,64 @@
-const propertiesService = require('./properties.service');
+const service = require('./properties.service');
 const { success, error, paginated } = require('../../utils/response');
 
 async function list(req, res) {
   try {
-    const tenantId = req.user.tenantId;
-    const { page, limit, status, type, search } = req.query;
-    const result = await propertiesService.list(tenantId, { page, limit, status, type, search });
+    const result = await service.list(req.user.tenantId, req.query);
     return paginated(res, result.properties, result.page, result.limit, result.total);
   } catch (err) {
+    console.error('Properties.list error:', err);
     return error(res, err.message || 'Error al listar propiedades', err.status || 500);
   }
 }
 
 async function getById(req, res) {
   try {
-    const property = await propertiesService.getById(req.params.id, req.user.tenantId);
-    return success(res, property, 'Propiedad obtenida exitosamente');
+    const data = await service.getById(req.params.id, req.user.tenantId);
+    return success(res, data);
   } catch (err) {
-    return error(res, err.message || 'Error al obtener propiedad', err.status || 500);
+    console.error('Properties.getById error:', err);
+    return error(res, err.message, err.status || 500);
   }
 }
 
 async function create(req, res) {
   try {
-    const property = await propertiesService.create(req.body, req.user.tenantId, req.files || []);
-    return success(res, property, 'Propiedad creada exitosamente', 201);
+    const data = await service.create(req.body, req.user.tenantId, req.files || []);
+    return success(res, data, 'Propiedad creada', 201);
   } catch (err) {
-    return error(res, err.message || 'Error al crear propiedad', err.status || 500);
+    console.error('Properties.create error:', err);
+    return error(res, err.message, err.status || 500);
   }
 }
 
 async function update(req, res) {
   try {
-    const property = await propertiesService.update(req.params.id, req.body, req.user.tenantId, req.files || []);
-    return success(res, property, 'Propiedad actualizada exitosamente');
+    const data = await service.update(req.params.id, req.body, req.user.tenantId, req.files || []);
+    return success(res, data, 'Propiedad actualizada');
   } catch (err) {
-    return error(res, err.message || 'Error al actualizar propiedad', err.status || 500);
+    console.error('Properties.update error:', err);
+    return error(res, err.message, err.status || 500);
   }
 }
 
 async function remove(req, res) {
   try {
-    const result = await propertiesService.delete(req.params.id, req.user.tenantId);
-    const message = result.softDeleted
-      ? 'Propiedad marcada como en mantenimiento (tiene contratos activos)'
-      : 'Propiedad eliminada exitosamente';
-    return success(res, result, message);
+    const data = await service.remove(req.params.id, req.user.tenantId);
+    return success(res, data);
   } catch (err) {
-    return error(res, err.message || 'Error al eliminar propiedad', err.status || 500);
+    console.error('Properties.remove error:', err);
+    return error(res, err.message, err.status || 500);
   }
 }
 
 async function updateStatus(req, res) {
   try {
-    const { status: newStatus } = req.body;
-    const property = await propertiesService.updateStatus(req.params.id, newStatus, req.user.tenantId);
-    return success(res, property, 'Estado de propiedad actualizado exitosamente');
+    const data = await service.updateStatus(req.params.id, req.body.status, req.user.tenantId);
+    return success(res, data, 'Estado actualizado');
   } catch (err) {
-    return error(res, err.message || 'Error al actualizar estado de propiedad', err.status || 500);
+    console.error('Properties.updateStatus error:', err);
+    return error(res, err.message, err.status || 500);
   }
 }
 
-module.exports = {
-  list,
-  getById,
-  create,
-  update,
-  delete: remove,
-  updateStatus,
-};
+module.exports = { list, getById, create, update, remove, updateStatus };
