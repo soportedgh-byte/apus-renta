@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Menu, Bell, ChevronDown, LogOut, User } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,7 @@ export default function Layout({ title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,7 +57,7 @@ export default function Layout({ title }) {
                   className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-full bg-[#2E86C1] flex items-center justify-center text-white text-xs font-medium">
-                    {user?.nombre?.[0] || user?.email?.[0] || 'U'}
+                    {user?.firstName?.[0] || user?.email?.[0] || 'U'}
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-500 hidden sm:block" />
                 </button>
@@ -71,7 +72,7 @@ export default function Layout({ title }) {
                       <button
                         onClick={() => {
                           setUserMenuOpen(false);
-                          // navigate to profile if needed
+                          navigate('/settings');
                         }}
                         className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >

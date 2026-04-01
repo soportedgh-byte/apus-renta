@@ -93,15 +93,15 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
       <div className="px-4 py-3 border-t border-gray-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-[#2E86C1] flex items-center justify-center text-white text-xs font-medium shrink-0">
-            {user?.nombre?.[0] || user?.email?.[0] || 'U'}
+            {user?.firstName?.[0] || user?.email?.[0] || 'U'}
           </div>
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-medium text-[#2C3E50] truncate">
-                {user?.nombre || user?.email || 'Usuario'}
+                {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user?.email || 'Usuario'}
               </p>
               <p className="text-xs text-gray-500 truncate">
-                {user?.rol || 'Sin rol'}
+                {user?.role || 'Sin rol'}
               </p>
             </div>
           )}
