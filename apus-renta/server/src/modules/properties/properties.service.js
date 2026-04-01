@@ -18,8 +18,8 @@ async function list(tenantId, { page = 1, limit = 10, status, type, search } = {
 
   if (search) {
     where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { address: { contains: search, mode: 'insensitive' } },
+      { name: { contains: search } },
+      { address: { contains: search } },
     ];
   }
 
