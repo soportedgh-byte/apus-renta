@@ -61,4 +61,18 @@ async function updateStatus(req, res) {
   }
 }
 
-module.exports = { list, getById, create, update, remove, updateStatus };
+async function listAll(req, res) {
+  try {
+    const properties = await require('../../config/database').property.findMany({
+      where: { tenantId: Number(req.user.tenantId) },
+      select: { id: true, name: true, address: true, status: true, type: true, monthlyRent: true },
+      orderBy: { name: 'asc' },
+    });
+    return success(res, properties);
+  } catch (err) {
+    console.error('Properties.listAll error:', err);
+    return error(res, err.message, err.status || 500);
+  }
+}
+
+module.exports = { list, getById, create, update, remove, updateStatus, listAll };

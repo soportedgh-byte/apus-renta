@@ -62,12 +62,10 @@ const authorize = (...roles) => {
  */
 const injectTenantId = (req, res, next) => {
   if (req.user && req.user.tenantId) {
-    if (req.body) {
-      req.body.tenantId = req.user.tenantId;
-    }
-    if (req.query) {
-      req.query.tenantId = req.user.tenantId;
-    }
+    if (!req.body) req.body = {};
+    req.body.tenantId = req.user.tenantId;
+    if (!req.query) req.query = {};
+    req.query.tenantId = req.user.tenantId;
   }
   next();
 };

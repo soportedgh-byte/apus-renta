@@ -6,6 +6,7 @@ const { verifyToken, authorize, injectTenantId } = require('../../middleware/aut
 const { uploadMultiple } = require('../../middleware/upload');
 
 router.get('/', verifyToken, injectTenantId, controller.list);
+router.get('/list', verifyToken, controller.listAll);
 router.get('/:id', verifyToken, controller.getById);
 router.post('/', verifyToken, authorize('PROPIETARIO', 'ENCARGADO'), uploadMultiple('photos', 10), validators.create, validate, controller.create);
 router.put('/:id', verifyToken, authorize('PROPIETARIO', 'ENCARGADO'), uploadMultiple('photos', 10), validators.update, validate, controller.update);

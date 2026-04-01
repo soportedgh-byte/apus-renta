@@ -15,5 +15,7 @@ router.get('/profile', verifyToken, controller.getProfile);
 router.put('/profile', verifyToken, controller.updateProfile);
 router.put('/change-password', verifyToken, validators.changePassword, validate, controller.changePassword);
 router.put('/password', verifyToken, validators.changePassword, validate, controller.changePassword);
+router.get('/profile', verifyToken, controller.getProfile);
+router.put('/profile', verifyToken, controller.updateProfile);
 
 module.exports = router;

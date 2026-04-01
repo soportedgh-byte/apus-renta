@@ -15,6 +15,9 @@ const PQRSPage = React.lazy(() => import('./pages/PQRSPage'));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage'));
 const AuditPage = React.lazy(() => import('./pages/AuditPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
+const AdminDashboardPage = React.lazy(() => import('./pages/admin/AdminDashboardPage'));
+const AdminTenantsPage = React.lazy(() => import('./pages/admin/AdminTenantsPage'));
+const AdminPlansPage = React.lazy(() => import('./pages/admin/AdminPlansPage'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -92,6 +95,9 @@ function AppRoutes() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="admin" element={<AdminDashboardPage />} />
+          <Route path="admin/tenants" element={<AdminTenantsPage />} />
+          <Route path="admin/plans" element={<AdminPlansPage />} />
         </Route>
 
         {/* Catch-all */}

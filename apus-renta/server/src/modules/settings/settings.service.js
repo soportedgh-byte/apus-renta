@@ -30,11 +30,28 @@ async function getTenantInfo(tenantId) {
   return tenant;
 }
 
-async function updateTenantInfo(tenantId, data) {
+async function updateTenantInfo(tenantId, data, file) {
   const updateData = {};
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.logo !== undefined) updateData.logo = data.logo;
-  if (data.configJson !== undefined) updateData.configJson = data.configJson;
+  if (data && data.name !== undefined) updateData.name = data.name;
+  if (file) updateData.logo = file.path.replace(/\\/g, '/');
+  else if (data && data.logo !== undefined) updateData.logo = data.logo;
+
+  // Handle branding/config
+  if (data && (data.primaryColor || data.accentColor)) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
+    const currentConfig = (tenant && tenant.configJson) || {};
+    if (!currentConfig.branding) currentConfig.branding = {};
+    if (data.primaryColor) currentConfig.branding.primaryColor = data.primaryColor;
+    if (data.accentColor) currentConfig.branding.accentColor = data.accentColor;
+    updateData.configJson = currentConfig;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
+    if (!tenant) throw { status: 404, message: 'Tenant no encontrado' };
+    return tenant;
+  }
+
   const tenant = await prisma.tenant.update({
     where: { id: Number(tenantId) },
     data: updateData,

@@ -33,7 +33,7 @@ async function getTenantInfo(req, res) {
 
 async function updateTenantInfo(req, res) {
   try {
-    const data = await service.updateTenantInfo(req.user.tenantId, req.body);
+    const data = await service.updateTenantInfo(req.user.tenantId, req.body || {}, req.file || null);
     return success(res, data, 'Informacion del tenant actualizada');
   } catch (err) {
     console.error('Settings.updateTenantInfo error:', err);

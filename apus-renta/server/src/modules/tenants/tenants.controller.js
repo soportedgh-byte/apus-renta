@@ -53,10 +53,25 @@ async function remove(req, res) {
   }
 }
 
+async function listAll(req, res) {
+  try {
+    const users = await require('../../config/database').user.findMany({
+      where: { tenantId: Number(req.user.tenantId), role: 'ARRENDATARIO', status: 'ACTIVE' },
+      select: { id: true, firstName: true, lastName: true, email: true, tenantPerson: { select: { id: true, documentNumber: true } } },
+      orderBy: { firstName: 'asc' },
+    });
+    return success(res, users);
+  } catch (err) {
+    console.error('Tenants.listAll error:', err);
+    return error(res, err.message, err.status || 500);
+  }
+}
+
 module.exports = {
   list,
   getById,
   create,
   update,
   delete: remove,
+  listAll,
 };

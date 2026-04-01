@@ -182,9 +182,27 @@ async function main() {
     });
   }
 
+  // 6. Create SUPER_ADMIN user
+  const superAdminHash = await bcrypt.hash('SuperAdmin123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'superadmin@apusrenta.com' },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      email: 'superadmin@apusrenta.com',
+      passwordHash: superAdminHash,
+      firstName: 'APUS',
+      lastName: 'Admin',
+      role: 'SUPER_ADMIN',
+      status: 'ACTIVE',
+      phone: '+573000000000',
+    },
+  });
+
   console.log('Seed completed!');
   console.log('');
   console.log('Credenciales de acceso:');
+  console.log('   Super Admin: superadmin@apusrenta.com / SuperAdmin123!');
   console.log('   Propietario: admin@apusrenta.com / Admin123!');
   console.log('   Encargado:   encargado@apusrenta.com / Encargado123!');
   console.log('   Inquilinos:  maria.garcia@email.com / Tenant123!');

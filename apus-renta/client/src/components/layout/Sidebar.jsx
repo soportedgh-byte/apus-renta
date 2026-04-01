@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  UsersRound,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -28,6 +30,12 @@ const navItems = [
   { to: '/reports', label: 'Reportes', icon: BarChart3 },
   { to: '/audit', label: 'Auditoria', icon: Shield },
   { to: '/settings', label: 'Configuracion', icon: Settings },
+];
+
+const adminNavItems = [
+  { to: '/admin', label: 'Admin Dashboard', icon: LayoutDashboard },
+  { to: '/admin/tenants', label: 'Clientes', icon: UsersRound },
+  { to: '/admin/plans', label: 'Planes', icon: Package },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
@@ -73,6 +81,39 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
             {!collapsed && <span>{label}</span>}
           </NavLink>
         ))}
+
+        {/* Admin section - SUPER_ADMIN only */}
+        {user?.role === 'SUPER_ADMIN' && (
+          <>
+            <div className="pt-4 pb-2">
+              {!collapsed ? (
+                <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Administracion
+                </p>
+              ) : (
+                <hr className="border-gray-200 mx-2" />
+              )}
+            </div>
+            {adminNavItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/admin'}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#D6EAF8] text-[#1B4F72]'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-[#2C3E50]'
+                  }`
+                }
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                {!collapsed && <span>{label}</span>}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Collapse toggle (desktop only) */}
