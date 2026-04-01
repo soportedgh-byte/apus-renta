@@ -67,12 +67,13 @@ api.interceptors.response.use(
     }
 
     try {
-      const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
-      const newToken = data.data?.token || data.token;
+      const { data } = await axios.post('/api/v1/auth/refresh-token', { refreshToken });
+      const result = data.data || data;
+      const newToken = result.accessToken || result.token;
 
       localStorage.setItem('token', newToken);
-      if (data.data?.refreshToken || data.refreshToken) {
-        localStorage.setItem('refreshToken', data.data?.refreshToken || data.refreshToken);
+      if (result.refreshToken) {
+        localStorage.setItem('refreshToken', result.refreshToken);
       }
 
       api.defaults.headers.common.Authorization = `Bearer ${newToken}`;

@@ -54,12 +54,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
-    const { token: accessToken, refreshToken, user: userData } = data.data || data;
+    const response = await api.post('/auth/login', { email, password });
+    const result = response.data.data || response.data;
 
-    localStorage.setItem('token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refreshToken', refreshToken);
+    // Backend returns: { user, accessToken, refreshToken }
+    const accessToken = result.accessToken || result.token;
+    const refreshTk = result.refreshToken;
+    const userData = result.user;
+
+    if (accessToken) {
+      localStorage.setItem('token', accessToken);
+    }
+    if (refreshTk) {
+      localStorage.setItem('refreshToken', refreshTk);
     }
 
     setToken(accessToken);
