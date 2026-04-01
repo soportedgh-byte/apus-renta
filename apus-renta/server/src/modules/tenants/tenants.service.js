@@ -35,12 +35,15 @@ async function list(tenantId, { page = 1, limit = 10, search } = {}) {
         phone: true,
         status: true,
         createdAt: true,
-        tenantPerson: true,
-        leases: {
-          where: { status: 'ACTIVE' },
-          take: 1,
-          include: { property: true },
-          orderBy: { startDate: 'desc' },
+        tenantPerson: {
+          include: {
+            leases: {
+              where: { status: 'ACTIVO' },
+              take: 1,
+              include: { property: { select: { id: true, name: true, address: true } } },
+              orderBy: { startDate: 'desc' },
+            },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -55,8 +58,8 @@ async function list(tenantId, { page = 1, limit = 10, search } = {}) {
  * Obtener arrendatario por ID con relaciones.
  */
 async function getById(id, tenantId) {
-  const user = await prisma.user.findUnique({
-    where: { id: Number(id) },
+  const user = await prisma.user.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId), role: 'ARRENDATARIO' },
     select: {
       id: true,
       email: true,
@@ -66,27 +69,22 @@ async function getById(id, tenantId) {
       status: true,
       createdAt: true,
       updatedAt: true,
-      tenantPerson: true,
-      leases: {
+      tenantPerson: {
         include: {
-          property: true,
-          payments: true,
+          leases: {
+            include: {
+              property: { select: { id: true, name: true, address: true } },
+              payments: { orderBy: { createdAt: 'desc' }, take: 10 },
+            },
+            orderBy: { startDate: 'desc' },
+          },
         },
-        orderBy: { startDate: 'desc' },
       },
     },
   });
 
   if (!user) {
     throw { status: 404, message: 'Arrendatario no encontrado' };
-  }
-
-  if (user.tenantId !== undefined && user.tenantId !== Number(tenantId)) {
-    // Verificar que pertenece al mismo tenant via tenantPerson
-    const belongsToTenant = user.tenantPerson && user.tenantPerson.tenantId === Number(tenantId);
-    if (!belongsToTenant) {
-      throw { status: 403, message: 'No tiene permisos para ver este arrendatario' };
-    }
   }
 
   return user;
@@ -217,5 +215,5 @@ module.exports = {
   getById,
   create,
   update,
-  delete: remove,
+  remove,
 };

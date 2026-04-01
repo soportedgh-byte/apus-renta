@@ -14,14 +14,14 @@ async function list(tenantId, { page = 1, limit = 10, propertyId, type, status, 
   const skip = (page - 1) * limit;
 
   const [data, total] = await Promise.all([
-    prisma.utility.findMany({
+    prisma.utilityBill.findMany({
       where,
       include: { property: true },
       skip,
       take: Number(limit),
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.utility.count({ where }),
+    prisma.utilityBill.count({ where }),
   ]);
 
   return { data, total, page: Number(page), limit: Number(limit) };
@@ -52,7 +52,7 @@ async function getSummary(tenantId) {
     };
 
     for (const type of utilityTypes) {
-      const latest = await prisma.utility.findFirst({
+      const latest = await prisma.utilityBill.findFirst({
         where: {
           tenantId: Number(tenantId),
           propertyId: property.id,
@@ -97,7 +97,7 @@ async function getSummary(tenantId) {
  * Obtener un servicio publico por ID.
  */
 async function getById(id) {
-  const utility = await prisma.utility.findUnique({
+  const utility = await prisma.utilityBill.findUnique({
     where: { id: Number(id) },
     include: { property: true },
   });
@@ -127,7 +127,7 @@ async function create(data, file) {
     createData.receiptUrl = `/uploads/utilities/${file.filename}`;
   }
 
-  const utility = await prisma.utility.create({
+  const utility = await prisma.utilityBill.create({
     data: createData,
     include: { property: true },
   });
@@ -139,7 +139,7 @@ async function create(data, file) {
  * Actualizar un servicio publico.
  */
 async function update(id, data) {
-  const existing = await prisma.utility.findUnique({ where: { id: Number(id) } });
+  const existing = await prisma.utilityBill.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
@@ -148,7 +148,7 @@ async function update(id, data) {
   if (data.amount !== undefined) updateData.amount = parseFloat(data.amount);
   if (data.status !== undefined) updateData.status = data.status;
 
-  const utility = await prisma.utility.update({
+  const utility = await prisma.utilityBill.update({
     where: { id: Number(id) },
     data: updateData,
     include: { property: true },
@@ -161,12 +161,12 @@ async function update(id, data) {
  * Actualizar solo el estado de un servicio publico.
  */
 async function updateStatus(id, status) {
-  const existing = await prisma.utility.findUnique({ where: { id: Number(id) } });
+  const existing = await prisma.utilityBill.findUnique({ where: { id: Number(id) } });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
 
-  const utility = await prisma.utility.update({
+  const utility = await prisma.utilityBill.update({
     where: { id: Number(id) },
     data: { status },
     include: { property: true },

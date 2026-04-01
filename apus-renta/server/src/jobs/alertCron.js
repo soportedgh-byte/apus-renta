@@ -53,9 +53,8 @@ async function checkLeaseExpiry() {
         data: {
           tenantId: lease.tenantId,
           type: 'VENCIMIENTO_CONTRATO',
-          title: `Contrato por vencer en ${days} dias`,
           message: `El contrato de ${tenantName} para la propiedad "${lease.property?.name || lease.propertyId}" vence en ${days} dias (${lease.endDate.toISOString().split('T')[0]}).`,
-          channel: 'SISTEMA',
+          channel: 'ALL',
           status: 'PENDIENTE',
           referenceId: lease.id,
           referenceType: 'LEASE',
@@ -111,9 +110,8 @@ async function checkOverduePayments() {
           data: {
             tenantId: lease.tenantId,
             type: 'VENCIMIENTO_PAGO',
-            title: 'Pago de arriendo pendiente',
             message: `No se ha registrado pago del arriendo para el periodo ${currentPeriod} de la propiedad "${lease.property?.name || lease.propertyId}". Monto esperado: $${lease.monthlyRent}.`,
-            channel: 'SISTEMA',
+            channel: 'ALL',
             status: 'PENDIENTE',
             referenceId: lease.id,
             referenceType: 'LEASE',
@@ -129,7 +127,7 @@ async function checkOverduePayments() {
 async function checkOverdueUtilities() {
   const now = new Date();
 
-  const overdueUtilities = await prisma.utility.findMany({
+  const overdueUtilities = await prisma.utilityBill.findMany({
     where: {
       status: 'PENDIENTE',
       dueDate: { lt: now },
@@ -155,9 +153,8 @@ async function checkOverdueUtilities() {
         data: {
           tenantId: utility.tenantId,
           type: 'VENCIMIENTO_SERVICIO',
-          title: `Servicio ${utility.type} vencido`,
           message: `El pago de ${utility.type} para la propiedad "${utility.property?.name || utility.propertyId}" periodo ${utility.period} esta vencido desde ${utility.dueDate.toISOString().split('T')[0]}. Monto: $${utility.amount}.`,
-          channel: 'SISTEMA',
+          channel: 'ALL',
           status: 'PENDIENTE',
           referenceId: utility.id,
           referenceType: 'UTILITY',
@@ -165,7 +162,7 @@ async function checkOverdueUtilities() {
       });
 
       // Actualizar estado del servicio a VENCIDO
-      await prisma.utility.update({
+      await prisma.utilityBill.update({
         where: { id: utility.id },
         data: { status: 'VENCIDO' },
       });
@@ -179,7 +176,7 @@ async function checkUnansweredPqrs() {
   const threeDaysAgo = new Date();
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
-  const unansweredPqrs = await prisma.pqrs.findMany({
+  const unansweredPqrs = await prisma.pQRS.findMany({
     where: {
       status: 'RADICADA',
       createdAt: { lt: threeDaysAgo },
@@ -210,9 +207,8 @@ async function checkUnansweredPqrs() {
         data: {
           tenantId: pqrs.tenantId,
           type: 'PQRS_SIN_RESPUESTA',
-          title: 'PQRS sin respuesta por mas de 3 dias',
           message: `La ${pqrs.type} "${pqrs.subject}" de ${userName} para la propiedad "${pqrs.property?.name || pqrs.propertyId}" lleva mas de 3 dias sin respuesta.`,
-          channel: 'SISTEMA',
+          channel: 'ALL',
           status: 'PENDIENTE',
           referenceId: pqrs.id,
           referenceType: 'PQRS',
