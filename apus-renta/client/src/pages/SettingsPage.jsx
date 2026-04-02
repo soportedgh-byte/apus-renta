@@ -189,16 +189,22 @@ export default function SettingsPage() {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const formData = new FormData();
-      formData.append('firstName', profile.firstName);
-      formData.append('lastName', profile.lastName);
-      formData.append('phone', profile.phone);
       if (profile.avatar) {
-        formData.append('avatar', profile.avatar);
+        const fd = new FormData();
+        fd.append('avatar', profile.avatar);
+        if (profile.firstName) fd.append('firstName', profile.firstName);
+        if (profile.lastName) fd.append('lastName', profile.lastName);
+        if (profile.phone) fd.append('phone', profile.phone);
+        await api.put('/auth/profile', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.put('/auth/profile', {
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.phone,
+        });
       }
-      await api.put('/auth/profile', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
       showTemporarySuccess('Perfil actualizado correctamente');
     } catch {
       // Error handled by interceptor
@@ -270,15 +276,20 @@ export default function SettingsPage() {
   const saveTenant = async () => {
     setSaving(true);
     try {
-      const formData = new FormData();
-      formData.append('name', tenant.name);
-      formData.append('primaryColor', tenant.primaryColor);
       if (tenant.logo) {
-        formData.append('logo', tenant.logo);
+        const fd = new FormData();
+        fd.append('logo', tenant.logo);
+        if (tenant.name) fd.append('name', tenant.name);
+        if (tenant.primaryColor) fd.append('primaryColor', tenant.primaryColor);
+        await api.put('/settings/tenant', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        await api.put('/settings/tenant', {
+          name: tenant.name,
+          primaryColor: tenant.primaryColor,
+        });
       }
-      await api.put('/settings/tenant', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
       showTemporarySuccess('Configuracion de tenant guardada');
     } catch {
       // Error handled by interceptor

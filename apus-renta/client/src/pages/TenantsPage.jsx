@@ -154,17 +154,18 @@ export default function TenantsPage() {
 
   const handleOpenEdit = (tenant) => {
     setEditing(tenant);
+    const tp = tenant.tenantPerson || {};
     setFormData({
       firstName: tenant.firstName || '',
       lastName: tenant.lastName || '',
       email: tenant.email || '',
       password: '',
-      documentType: tenant.documentType || '',
-      documentNumber: tenant.documentNumber || '',
+      documentType: tp.documentType || tenant.documentType || '',
+      documentNumber: tp.documentNumber || tenant.documentNumber || '',
       phone: tenant.phone || '',
-      emergencyContactName: tenant.emergencyContactName || '',
-      emergencyContactPhone: tenant.emergencyContactPhone || '',
-      notes: tenant.notes || '',
+      emergencyContactName: tp.emergencyContactName || tenant.emergencyContactName || '',
+      emergencyContactPhone: tp.emergencyContactPhone || tenant.emergencyContactPhone || '',
+      notes: tp.notes || tenant.notes || '',
     });
     setFormErrors({});
     setShowFormModal(true);
@@ -262,11 +263,14 @@ export default function TenantsPage() {
     {
       key: 'document',
       label: 'Documento',
-      render: (_, row) => (
-        <span className="text-sm text-[#2C3E50]">
-          {row.documentType} {row.documentNumber}
-        </span>
-      ),
+      render: (_, row) => {
+        const tp = row.tenantPerson || {};
+        return (
+          <span className="text-sm text-[#2C3E50]">
+            {tp.documentType || row.documentType || ''} {tp.documentNumber || row.documentNumber || ''}
+          </span>
+        );
+      },
     },
     {
       key: 'phone',
@@ -279,7 +283,8 @@ export default function TenantsPage() {
       key: 'property',
       label: 'Propiedad Actual',
       render: (_, row) => {
-        const propName = row.currentProperty?.name || row.propertyName;
+        const lease = row.tenantPerson?.leases?.[0];
+        const propName = lease?.property?.name || row.currentProperty?.name;
         return propName ? (
           <span className="text-sm text-[#2C3E50]">{propName}</span>
         ) : (
@@ -291,7 +296,8 @@ export default function TenantsPage() {
       key: 'leaseStatus',
       label: 'Estado Contrato',
       render: (_, row) => {
-        const status = row.currentLease?.status || row.leaseStatus;
+        const lease = row.tenantPerson?.leases?.[0];
+        const status = lease?.status || row.currentLease?.status;
         return status ? <StatusBadge status={status} /> : (
           <span className="text-sm text-gray-400">-</span>
         );
@@ -345,8 +351,10 @@ export default function TenantsPage() {
     const t = tenantDetail || viewing;
     if (!t) return null;
 
-    const lease = t.currentLease || t.lease;
-    const payments = t.payments || t.paymentHistory || [];
+    const tp = t.tenantPerson || {};
+    const leases = tp.leases || [];
+    const lease = leases[0] || t.currentLease || t.lease;
+    const payments = lease?.payments || t.payments || [];
 
     return (
       <div className="space-y-6">
@@ -358,15 +366,15 @@ export default function TenantsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <InfoRow icon={User} label="Nombre" value={getFullName(t)} />
             <InfoRow icon={Mail} label="Email" value={t.email} />
-            <InfoRow icon={FileText} label="Documento" value={`${getDocLabel(t.documentType)} - ${t.documentNumber}`} />
+            <InfoRow icon={FileText} label="Documento" value={`${getDocLabel(t.tenantPerson?.documentType || t.documentType)} - ${t.tenantPerson?.documentNumber || t.documentNumber}`} />
             <InfoRow icon={Phone} label="Telefono" value={t.phone} />
-            {t.emergencyContactName && (
-              <InfoRow icon={AlertCircle} label="Contacto emergencia" value={`${t.emergencyContactName} - ${t.emergencyContactPhone || ''}`} />
+            {(t.tenantPerson?.emergencyContactName || t.emergencyContactName) && (
+              <InfoRow icon={AlertCircle} label="Contacto emergencia" value={`${t.tenantPerson?.emergencyContactName || t.emergencyContactName} - ${t.tenantPerson?.emergencyContactPhone || t.emergencyContactPhone || ''}`} />
             )}
           </div>
-          {t.notes && (
+          {(t.tenantPerson?.notes || t.notes) && (
             <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
-              <span className="font-medium text-[#2C3E50]">Notas: </span>{t.notes}
+              <span className="font-medium text-[#2C3E50]">Notas: </span>{t.tenantPerson?.notes || t.notes}
             </div>
           )}
         </div>

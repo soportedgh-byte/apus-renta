@@ -138,9 +138,9 @@ export default function LeasesPage() {
 
   const fetchProperties = useCallback(async () => {
     try {
-      const { data } = await api.get('/properties', { params: { limit: 200 } });
+      const { data } = await api.get('/properties/list');
       const result = data.data || data;
-      const list = Array.isArray(result) ? result : result.properties || result.items || [];
+      const list = Array.isArray(result) ? result : [];
       setProperties(list);
     } catch {
       /* silent */
@@ -149,9 +149,9 @@ export default function LeasesPage() {
 
   const fetchTenants = useCallback(async () => {
     try {
-      const { data } = await api.get('/persons', { params: { role: 'ARRENDATARIO', limit: 200 } });
+      const { data } = await api.get('/tenants/list');
       const result = data.data || data;
-      const list = Array.isArray(result) ? result : result.persons || result.items || [];
+      const list = Array.isArray(result) ? result : [];
       setTenants(list);
     } catch {
       /* silent */
@@ -180,8 +180,8 @@ export default function LeasesPage() {
   }));
 
   const tenantOptions = tenants.map((t) => ({
-    value: t.id || t._id,
-    label: `${t.firstName || ''} ${t.lastName || ''}`.trim() || t.fullName || t.email,
+    value: t.tenantPerson?.id || t.id,
+    label: `${t.firstName || ''} ${t.lastName || ''}`.trim() || t.email,
   }));
 
   const filterPropertyOptions = [{ value: '', label: 'Todas las propiedades' }, ...propertyOptions];
