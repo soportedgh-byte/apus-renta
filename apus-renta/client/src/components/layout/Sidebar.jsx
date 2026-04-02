@@ -33,9 +33,9 @@ const allNavItems = [
 ];
 
 const adminNavItems = [
-  { to: '/superadmin', label: 'Admin Dashboard', icon: LayoutDashboard },
-  { to: '/superadmin/tenants', label: 'Clientes', icon: UsersRound },
-  { to: '/superadmin/plans', label: 'Planes', icon: Package },
+  { to: '/sa', label: 'Admin Dashboard', icon: LayoutDashboard },
+  { to: '/sa/tenants', label: 'Clientes', icon: UsersRound },
+  { to: '/sa/plans', label: 'Planes', icon: Package },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
@@ -98,7 +98,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/superadmin'}
+                end={to === '/sa'}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${

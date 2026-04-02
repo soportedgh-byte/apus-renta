@@ -33,7 +33,7 @@ async function getTenantInfo(tenantId) {
 async function updateTenantInfo(tenantId, data, file) {
   const updateData = {};
   if (data && data.name !== undefined) updateData.name = data.name;
-  if (file) updateData.logo = file.path.replace(/\\/g, '/');
+  if (file) updateData.logo = `/uploads/settings/${file.filename}`;
   else if (data && data.logo !== undefined) updateData.logo = data.logo;
 
   // Handle branding/config

@@ -95,9 +95,9 @@ function AppRoutes() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="superadmin" element={<AdminDashboardPage />} />
-          <Route path="superadmin/tenants" element={<AdminTenantsPage />} />
-          <Route path="superadmin/plans" element={<AdminPlansPage />} />
+          <Route path="sa" element={<AdminDashboardPage />} />
+          <Route path="sa/tenants" element={<AdminTenantsPage />} />
+          <Route path="sa/plans" element={<AdminPlansPage />} />
         </Route>
 
         {/* Catch-all */}

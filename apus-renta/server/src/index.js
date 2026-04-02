@@ -52,7 +52,7 @@ app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/alerts', alertsRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/settings', settingsRoutes);
-app.use('/api/v1/superadmin', adminRoutes);
+app.use('/api/v1/sa', adminRoutes);
 
 // Note: React SPA fallback is handled by web.config (IIS rewrite rules)
 

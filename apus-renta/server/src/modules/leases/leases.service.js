@@ -19,7 +19,7 @@ async function list(tenantId, { page = 1, limit = 10, status, propertyId, userRo
   // Si el usuario es ARRENDATARIO, solo ve sus propios contratos
   if (userRole === 'ARRENDATARIO') {
     const tenantPerson = await prisma.tenantPerson.findFirst({
-      where: { userId: Number(userId), tenantId: Number(tenantId) },
+      where: { userId: Number(userId) },
     });
     if (tenantPerson) {
       where.tenantPersonId = tenantPerson.id;
@@ -86,8 +86,8 @@ async function create(data, tenantId) {
   }
 
   // Verificar que el arrendatario existe
-  const tenantPerson = await prisma.tenantPerson.findFirst({
-    where: { id: Number(tenantPersonId), tenantId: Number(tenantId) },
+  const tenantPerson = await prisma.tenantPerson.findUnique({
+    where: { id: Number(tenantPersonId) },
   });
   if (!tenantPerson) {
     throw { status: 404, message: 'Arrendatario no encontrado o no pertenece a su organizacion' };
@@ -101,7 +101,7 @@ async function create(data, tenantId) {
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       monthlyRent: parseFloat(monthlyRent),
-      deposit: deposit ? parseFloat(deposit) : null,
+      deposit: parseFloat(deposit) || 0,
       terms: terms || null,
       status: 'BORRADOR',
     },

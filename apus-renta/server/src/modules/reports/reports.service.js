@@ -5,8 +5,92 @@ const { generatePDF } = require('../../utils/pdf');
 /**
  * Dashboard KPIs y datos resumidos para el propietario/encargado.
  */
-async function getDashboard(tenantId) {
+async function getArrendatarioDashboard(tenantId, userId) {
+  // Find tenant person and active lease
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      tenantPerson: {
+        include: {
+          leases: {
+            where: { status: 'ACTIVO' },
+            take: 1,
+            orderBy: { startDate: 'desc' },
+            include: { property: true },
+          },
+        },
+      },
+    },
+  });
+
+  const tenantPerson = user?.tenantPerson;
+  const activeLease = tenantPerson?.leases?.[0] || null;
+  const propertyId = activeLease?.propertyId;
+
+  // Get recent payments
+  const recentPayments = await prisma.payment.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+    include: {
+      lease: { include: { property: { select: { id: true, name: true } } } },
+    },
+  });
+
+  // Get utility status for their property
+  let utilities = [];
+  if (propertyId) {
+    const types = ['AGUA', 'LUZ', 'GAS'];
+    for (const type of types) {
+      const latest = await prisma.utilityBill.findFirst({
+        where: { propertyId, type },
+        orderBy: { createdAt: 'desc' },
+      });
+      utilities.push({
+        type,
+        status: latest?.status || null,
+        amount: latest ? Number(latest.amount) : null,
+        period: latest?.period || null,
+        dueDate: latest?.dueDate || null,
+      });
+    }
+  }
+
+  // Get open PQRS
+  const openPQRS = await prisma.pQRS.count({
+    where: { userId, status: { in: ['RADICADA', 'EN_PROCESO'] } },
+  });
+
+  const pqrsList = await prisma.pQRS.findMany({
+    where: { userId, status: { in: ['RADICADA', 'EN_PROCESO'] } },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+    include: { property: { select: { id: true, name: true } } },
+  });
+
+  return {
+    role: 'ARRENDATARIO',
+    property: activeLease?.property || null,
+    lease: activeLease ? {
+      id: activeLease.id,
+      monthlyRent: Number(activeLease.monthlyRent),
+      startDate: activeLease.startDate,
+      endDate: activeLease.endDate,
+      status: activeLease.status,
+    } : null,
+    recentPayments,
+    utilities,
+    openPQRS,
+    pqrsList,
+  };
+}
+
+async function getDashboard(tenantId, userId, role) {
   tenantId = Number(tenantId);
+
+  if (role === 'ARRENDATARIO') {
+    return getArrendatarioDashboard(tenantId, Number(userId));
+  }
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);

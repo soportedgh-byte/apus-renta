@@ -166,14 +166,84 @@ export default function PQRSPage() {
     }
   };
 
-  const openDetail = (item) => {
-    setSelectedPqrs(item);
-    setManageForm({
-      status: item.status || '',
-      resolution: item.resolution || '',
-      assignedTo: item.assignedTo?._id || item.assignedTo?.id || item.assignedTo || '',
-    });
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [resolutionText, setResolutionText] = useState('');
+  const [showResolutionInput, setShowResolutionInput] = useState(false);
+
+  const openDetail = async (item) => {
     setShowDetailModal(true);
+    setDetailLoading(true);
+    setShowResolutionInput(false);
+    setResolutionText('');
+    try {
+      const { data } = await api.get(`/pqrs/${item._id || item.id}`);
+      const detail = data.data || data;
+      setSelectedPqrs(detail);
+      setManageForm({
+        status: detail.status || '',
+        resolution: detail.resolution || '',
+        assignedTo: detail.assignedTo?._id || detail.assignedTo?.id || detail.assignedTo || '',
+      });
+    } catch {
+      setSelectedPqrs(item);
+      setManageForm({
+        status: item.status || '',
+        resolution: item.resolution || '',
+        assignedTo: item.assignedTo?._id || item.assignedTo?.id || item.assignedTo || '',
+      });
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleTakeCase = async () => {
+    if (!selectedPqrs) return;
+    setSaving(true);
+    try {
+      await api.put(`/pqrs/${selectedPqrs._id || selectedPqrs.id}`, {
+        status: 'EN_PROCESO',
+        assignedTo: user.id,
+      });
+      setShowDetailModal(false);
+      fetchPqrs();
+    } catch {
+      // Error handled by interceptor
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!selectedPqrs || !resolutionText.trim()) return;
+    setSaving(true);
+    try {
+      await api.put(`/pqrs/${selectedPqrs._id || selectedPqrs.id}`, {
+        status: 'RESUELTA',
+        resolution: resolutionText.trim(),
+      });
+      setShowDetailModal(false);
+      fetchPqrs();
+    } catch {
+      // Error handled by interceptor
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClose = async () => {
+    if (!selectedPqrs) return;
+    setSaving(true);
+    try {
+      await api.put(`/pqrs/${selectedPqrs._id || selectedPqrs.id}`, {
+        status: 'CERRADA',
+      });
+      setShowDetailModal(false);
+      fetchPqrs();
+    } catch {
+      // Error handled by interceptor
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleManageSave = async () => {
@@ -383,11 +453,15 @@ export default function PQRSPage() {
       {/* DETAIL / MANAGE MODAL */}
       <Modal
         isOpen={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
-        title={`PQRS - ${selectedPqrs?.ticketNumber || selectedPqrs?._id?.slice(-6) || ''}`}
+        onClose={() => { setShowDetailModal(false); setShowResolutionInput(false); }}
+        title={`PQRS - ${selectedPqrs?.ticketNumber || selectedPqrs?._id?.slice(-6) || selectedPqrs?.id?.toString().slice(-6) || ''}`}
         size="lg"
       >
-        {selectedPqrs && (
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2E86C1]" />
+          </div>
+        ) : selectedPqrs && (
           <div className="space-y-5">
             {/* Info Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -456,44 +530,57 @@ export default function PQRSPage() {
               </div>
             )}
 
-            {/* Manage Section (PROPIETARIO/ENCARGADO) */}
+            {/* Management Action Buttons (PROPIETARIO/ENCARGADO) */}
             {canManage && (
               <div className="border-t border-gray-200 pt-4 space-y-4">
                 <h4 className="text-sm font-semibold text-[#2C3E50] flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
-                  Gestionar Solicitud
+                  Acciones
                 </h4>
-                <Select
-                  label="Cambiar Estado"
-                  value={manageForm.status}
-                  onChange={(e) => setManageForm((prev) => ({ ...prev, status: e.target.value }))}
-                  options={[
-                    { value: 'RADICADA', label: 'Radicada' },
-                    { value: 'EN_PROCESO', label: 'En Proceso' },
-                    { value: 'RESUELTA', label: 'Resuelta' },
-                    { value: 'CERRADA', label: 'Cerrada' },
-                  ]}
-                />
-                <div>
-                  <label className="block text-sm font-medium text-[#2C3E50] mb-1">Resolucion</label>
-                  <textarea
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#2C3E50] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2E86C1] focus:border-transparent min-h-[80px] resize-y"
-                    value={manageForm.resolution}
-                    onChange={(e) => setManageForm((prev) => ({ ...prev, resolution: e.target.value }))}
-                    placeholder="Escriba la resolucion..."
-                  />
-                </div>
-                <Select
-                  label="Asignar a"
-                  value={manageForm.assignedTo}
-                  onChange={(e) => setManageForm((prev) => ({ ...prev, assignedTo: e.target.value }))}
-                  options={userOptions}
-                />
-                <div className="flex justify-end">
-                  <Button onClick={handleManageSave} loading={saving}>
-                    Guardar Cambios
+
+                {selectedPqrs.status === 'RADICADA' && (
+                  <Button onClick={handleTakeCase} loading={saving} className="w-full">
+                    Tomar Caso
                   </Button>
-                </div>
+                )}
+
+                {selectedPqrs.status === 'EN_PROCESO' && !showResolutionInput && (
+                  <Button onClick={() => setShowResolutionInput(true)} className="w-full">
+                    Resolver
+                  </Button>
+                )}
+
+                {selectedPqrs.status === 'EN_PROCESO' && showResolutionInput && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[#2C3E50] mb-1">Resolucion *</label>
+                      <textarea
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#2C3E50] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2E86C1] focus:border-transparent min-h-[100px] resize-y"
+                        value={resolutionText}
+                        onChange={(e) => setResolutionText(e.target.value)}
+                        placeholder="Describa la resolucion de esta solicitud..."
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="secondary" onClick={() => setShowResolutionInput(false)}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleResolve} loading={saving} disabled={!resolutionText.trim()}>
+                        Confirmar Resolucion
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedPqrs.status === 'RESUELTA' && (
+                  <Button onClick={handleClose} loading={saving} className="w-full">
+                    Cerrar Caso
+                  </Button>
+                )}
+
+                {selectedPqrs.status === 'CERRADA' && (
+                  <p className="text-sm text-gray-500 italic">Este caso ya se encuentra cerrado.</p>
+                )}
               </div>
             )}
           </div>

@@ -43,7 +43,7 @@ async function getById(id, tenantId) {
 }
 
 async function create(data, tenantId, files = []) {
-  const photos = files.map((f) => f.path.replace(/\\/g, '/'));
+  const photos = files.map((f) => `/uploads/properties/${f.filename}`);
   return prisma.property.create({
     data: {
       tenantId: Number(tenantId),
@@ -84,7 +84,7 @@ async function update(id, data, tenantId, files = []) {
   if (data.monthlyRent !== undefined) updateData.monthlyRent = parseFloat(data.monthlyRent);
 
   if (files && files.length > 0) {
-    const newPhotos = files.map((f) => f.path.replace(/\\/g, '/'));
+    const newPhotos = files.map((f) => `/uploads/properties/${f.filename}`);
     const existingPhotos = Array.isArray(existing.photos) ? existing.photos : [];
     updateData.photos = [...existingPhotos, ...newPhotos];
   }

@@ -3,7 +3,7 @@ const { success, error, paginated } = require('../../utils/response');
 
 async function getDashboard(req, res) {
   try {
-    const data = await reportsService.getDashboard(req.user.tenantId);
+    const data = await reportsService.getDashboard(req.user.tenantId, req.user.id, req.user.role);
     return success(res, data, 'Dashboard obtenido exitosamente');
   } catch (err) {
     console.error('Reports.getDashboard error:', err);

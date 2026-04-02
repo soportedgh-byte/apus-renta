@@ -46,7 +46,7 @@ async function updateProfile(req, res) {
   try {
     const data = req.body || {};
     if (req.file) {
-      data.avatar = req.file.path.replace(/\\/g, '/');
+      data.avatar = `/uploads/auth/${req.file.filename}`;
     }
     const user = await authService.updateProfile(req.user.id, data);
     return success(res, user, 'Perfil actualizado exitosamente');

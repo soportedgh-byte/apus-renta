@@ -228,6 +228,15 @@ export default function PropertiesPage() {
     }
   };
 
+  const handleQuickStatusChange = async (propertyId, newStatus) => {
+    try {
+      await api.patch(`/properties/${propertyId}/status`, { status: newStatus });
+      fetchProperties();
+    } catch (err) {
+      console.error('Error changing status:', err);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleting) return;
     setSubmitting(true);
@@ -331,6 +340,18 @@ export default function PropertiesPage() {
               {property.name}
             </h3>
             <StatusBadge status={property.status} />
+            {canManage && (
+              <select
+                value={property.status}
+                onChange={(e) => handleQuickStatusChange(property.id || property._id, e.target.value)}
+                className="ml-2 text-xs border border-gray-200 rounded px-1 py-0.5 bg-white"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <option value="DISPONIBLE">Disponible</option>
+                <option value="OCUPADO">Ocupado</option>
+                <option value="MANTENIMIENTO">Mantenimiento</option>
+              </select>
+            )}
           </div>
 
           <p className="text-sm text-gray-500 flex items-center gap-1 mb-3 truncate">

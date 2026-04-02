@@ -114,9 +114,9 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
       const payload = { ...form };
       if (isEdit) {
         delete payload.password;
-        await api.put(`/superadmin/tenants/${tenant.id || tenant._id}`, payload);
+        await api.put(`/sa/tenants/${tenant.id || tenant._id}`, payload);
       } else {
-        await api.post('/superadmin/tenants', payload);
+        await api.post('/sa/tenants', payload);
       }
       onSaved();
       onClose();
@@ -273,8 +273,8 @@ function TenantDetailModal({ open, onClose, tenantId }) {
       setLoading(true);
       try {
         const [tenantRes, statsRes] = await Promise.all([
-          api.get(`/superadmin/tenants/${tenantId}`),
-          api.get(`/superadmin/tenants/${tenantId}/stats`).catch(() => ({ data: { data: {} } })),
+          api.get(`/sa/tenants/${tenantId}`),
+          api.get(`/sa/tenants/${tenantId}/stats`).catch(() => ({ data: { data: {} } })),
         ]);
         setTenant(tenantRes.data.data || tenantRes.data);
         setStats(statsRes.data.data || statsRes.data);
@@ -363,7 +363,7 @@ function DeleteConfirmModal({ open, onClose, tenant, onConfirm }) {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await api.put(`/superadmin/tenants/${tenant.id || tenant._id}`, { status: 'INACTIVE' });
+      await api.put(`/sa/tenants/${tenant.id || tenant._id}`, { status: 'INACTIVE' });
       onConfirm();
       onClose();
     } catch {
@@ -435,7 +435,7 @@ export default function AdminTenantsPage() {
       if (filterPlan) params.plan = filterPlan;
       if (filterStatus) params.status = filterStatus;
 
-      const res = await api.get('/superadmin/tenants', { params });
+      const res = await api.get('/sa/tenants', { params });
       const result = res.data.data || res.data;
       setTenants(result.tenants || result.rows || result || []);
       setTotalPages(result.totalPages || Math.ceil((result.total || 0) / limit) || 1);
