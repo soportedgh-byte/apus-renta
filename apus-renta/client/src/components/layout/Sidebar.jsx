@@ -19,23 +19,23 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/properties', label: 'Propiedades', icon: Building2 },
-  { to: '/tenants', label: 'Inquilinos', icon: Users },
-  { to: '/leases', label: 'Contratos', icon: FileText },
-  { to: '/payments', label: 'Pagos', icon: CreditCard },
-  { to: '/utilities', label: 'Servicios', icon: Zap },
-  { to: '/pqrs', label: 'PQRS', icon: MessageSquare },
-  { to: '/reports', label: 'Reportes', icon: BarChart3 },
-  { to: '/audit', label: 'Auditoria', icon: Shield },
-  { to: '/settings', label: 'Configuracion', icon: Settings },
+const allNavItems = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'] },
+  { to: '/properties', label: 'Propiedades', icon: Building2, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO'] },
+  { to: '/tenants', label: 'Inquilinos', icon: Users, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO'] },
+  { to: '/leases', label: 'Contratos', icon: FileText, roles: ['SUPER_ADMIN', 'PROPIETARIO'] },
+  { to: '/payments', label: 'Pagos', icon: CreditCard, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'] },
+  { to: '/utilities', label: 'Servicios', icon: Zap, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'] },
+  { to: '/pqrs', label: 'PQRS', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'] },
+  { to: '/reports', label: 'Reportes', icon: BarChart3, roles: ['SUPER_ADMIN', 'PROPIETARIO'] },
+  { to: '/audit', label: 'Auditoria', icon: Shield, roles: ['SUPER_ADMIN', 'PROPIETARIO'] },
+  { to: '/settings', label: 'Configuracion', icon: Settings, roles: ['SUPER_ADMIN', 'PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'] },
 ];
 
 const adminNavItems = [
-  { to: '/admin', label: 'Admin Dashboard', icon: LayoutDashboard },
-  { to: '/admin/tenants', label: 'Clientes', icon: UsersRound },
-  { to: '/admin/plans', label: 'Planes', icon: Package },
+  { to: '/superadmin', label: 'Admin Dashboard', icon: LayoutDashboard },
+  { to: '/superadmin/tenants', label: 'Clientes', icon: UsersRound },
+  { to: '/superadmin/plans', label: 'Planes', icon: Package },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
@@ -64,7 +64,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {allNavItems.filter(item => item.roles.includes(user?.role)).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -98,7 +98,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/admin'}
+                end={to === '/superadmin'}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${

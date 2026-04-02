@@ -51,7 +51,7 @@ export default function AdminDashboardPage() {
     const fetchDashboard = async () => {
       try {
         setLoading(true);
-        const res = await api.get('/admin/dashboard');
+        const res = await api.get('/superadmin/dashboard');
         setData(res.data.data || res.data);
       } catch (err) {
         setError(err.response?.data?.message || 'Error al cargar el dashboard');

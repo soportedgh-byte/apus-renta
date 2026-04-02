@@ -5,7 +5,7 @@ const { verifyToken, authorize, injectTenantId } = require('../../middleware/aut
 router.get(
   '/dashboard',
   verifyToken,
-  authorize('PROPIETARIO', 'ENCARGADO'),
+  authorize('PROPIETARIO', 'ENCARGADO', 'ARRENDATARIO'),
   injectTenantId,
   controller.getDashboard
 );

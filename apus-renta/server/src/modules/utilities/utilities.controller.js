@@ -4,8 +4,7 @@ const { success, error, paginated } = require('../../utils/response');
 async function list(req, res) {
   try {
     const tenantId = req.user.tenantId;
-    const { page, limit, propertyId, type, status, period } = req.query;
-    const result = await utilitiesService.list(tenantId, { page, limit, propertyId, type, status, period });
+    const result = await utilitiesService.list(tenantId, { ...req.query, role: req.user.role, userId: req.user.id });
     return paginated(res, result.data, result.page, result.limit, result.total);
   } catch (err) {
     console.error('Utilities.list error:', err);
@@ -36,8 +35,7 @@ async function getById(req, res) {
 
 async function create(req, res) {
   try {
-    const body = { ...req.body, tenantId: req.user.tenantId };
-    const utility = await utilitiesService.create(body, req.file);
+    const utility = await utilitiesService.create(req.body, req.user.tenantId, req.file);
     return success(res, utility, 'Servicio publico creado exitosamente', 201);
   } catch (err) {
     console.error('Utilities.create error:', err);

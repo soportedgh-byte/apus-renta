@@ -46,7 +46,7 @@ async function update(req, res) {
 async function remove(req, res) {
   try {
     const tenant = await tenantsService.remove(req.params.id, req.user.tenantId);
-    return success(res, tenant, 'Arrendatario desactivado exitosamente');
+    return success(res, tenant, 'Arrendatario eliminado exitosamente');
   } catch (err) {
     console.error('Tenants.delete error:', err);
     return error(res, err.message || 'Error al eliminar arrendatario', err.status || 500);

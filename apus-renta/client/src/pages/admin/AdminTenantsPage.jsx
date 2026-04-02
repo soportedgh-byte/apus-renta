@@ -69,6 +69,7 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
     lastName: '',
     plan: 'FREE',
     maxProperties: 5,
+    status: 'ACTIVE',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -77,12 +78,13 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
     if (tenant) {
       setForm({
         name: tenant.name || '',
-        email: tenant.ownerEmail || '',
+        email: tenant.ownerEmail || tenant.users?.[0]?.email || '',
         password: '',
-        firstName: tenant.ownerFirstName || tenant.firstName || '',
-        lastName: tenant.ownerLastName || tenant.lastName || '',
+        firstName: tenant.ownerFirstName || tenant.users?.[0]?.firstName || tenant.firstName || '',
+        lastName: tenant.ownerLastName || tenant.users?.[0]?.lastName || tenant.lastName || '',
         plan: tenant.plan || 'FREE',
         maxProperties: tenant.maxProperties ?? 5,
+        status: tenant.status || 'ACTIVE',
       });
     } else {
       setForm({
@@ -93,6 +95,7 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
         lastName: '',
         plan: 'FREE',
         maxProperties: 5,
+        status: 'ACTIVE',
       });
     }
     setError(null);
@@ -111,9 +114,9 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
       const payload = { ...form };
       if (isEdit) {
         delete payload.password;
-        await api.put(`/admin/tenants/${tenant.id || tenant._id}`, payload);
+        await api.put(`/superadmin/tenants/${tenant.id || tenant._id}`, payload);
       } else {
-        await api.post('/admin/tenants', payload);
+        await api.post('/superadmin/tenants', payload);
       }
       onSaved();
       onClose();
@@ -221,6 +224,22 @@ function TenantFormModal({ open, onClose, tenant, onSaved }) {
           </div>
         </div>
 
+        {isEdit && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <select
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#2E86C1] focus:border-[#2E86C1] outline-none"
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
@@ -254,8 +273,8 @@ function TenantDetailModal({ open, onClose, tenantId }) {
       setLoading(true);
       try {
         const [tenantRes, statsRes] = await Promise.all([
-          api.get(`/admin/tenants/${tenantId}`),
-          api.get(`/admin/tenants/${tenantId}/stats`).catch(() => ({ data: { data: {} } })),
+          api.get(`/superadmin/tenants/${tenantId}`),
+          api.get(`/superadmin/tenants/${tenantId}/stats`).catch(() => ({ data: { data: {} } })),
         ]);
         setTenant(tenantRes.data.data || tenantRes.data);
         setStats(statsRes.data.data || statsRes.data);
@@ -344,7 +363,7 @@ function DeleteConfirmModal({ open, onClose, tenant, onConfirm }) {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await api.put(`/admin/tenants/${tenant.id || tenant._id}`, { status: 'INACTIVE' });
+      await api.put(`/superadmin/tenants/${tenant.id || tenant._id}`, { status: 'INACTIVE' });
       onConfirm();
       onClose();
     } catch {
@@ -416,7 +435,7 @@ export default function AdminTenantsPage() {
       if (filterPlan) params.plan = filterPlan;
       if (filterStatus) params.status = filterStatus;
 
-      const res = await api.get('/admin/tenants', { params });
+      const res = await api.get('/superadmin/tenants', { params });
       const result = res.data.data || res.data;
       setTenants(result.tenants || result.rows || result || []);
       setTotalPages(result.totalPages || Math.ceil((result.total || 0) / limit) || 1);
@@ -525,7 +544,7 @@ export default function AdminTenantsPage() {
                 tenants.map((t) => (
                   <tr key={t.id || t._id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="px-5 py-3 font-medium text-[#2C3E50]">{t.name}</td>
-                    <td className="px-5 py-3 text-gray-600">{t.ownerEmail || '-'}</td>
+                    <td className="px-5 py-3 text-gray-600">{t.ownerEmail || t.users?.[0]?.email || '-'}</td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PLAN_BADGE[t.plan] || PLAN_BADGE.FREE}`}>
                         {t.plan}

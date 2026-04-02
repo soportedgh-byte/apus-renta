@@ -255,8 +255,15 @@ export default function PropertiesPage() {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
   };
 
+  const normalizePhotoUrl = (photo) => {
+    if (!photo) return '';
+    if (photo.startsWith('http') || photo.startsWith('data:') || photo.startsWith('/')) return photo;
+    return `/${photo}`;
+  };
+
   const renderPropertyCard = (property) => {
-    const photos = property.photos || [];
+    const rawPhotos = property.photos || [];
+    const photos = rawPhotos.map(normalizePhotoUrl);
     const id = property._id || property.id;
     const currentIndex = getCarouselIndex(id);
 

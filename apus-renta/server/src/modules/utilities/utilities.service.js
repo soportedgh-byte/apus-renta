@@ -3,13 +3,25 @@ const prisma = require('../../config/database');
 /**
  * Lista servicios publicos con filtros y paginacion.
  */
-async function list(tenantId, { page = 1, limit = 10, propertyId, type, status, period }) {
+async function list(tenantId, { page = 1, limit = 10, propertyId, type, status, period, role, userId }) {
   const where = { tenantId: Number(tenantId) };
 
   if (propertyId) where.propertyId = Number(propertyId);
   if (type) where.type = type;
   if (status) where.status = status;
   if (period) where.period = period;
+
+  // If ARRENDATARIO, filter to only their property
+  if (role === 'ARRENDATARIO' && userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+      include: { tenantPerson: { include: { leases: { where: { status: 'ACTIVO' }, take: 1 } } } },
+    });
+    const lease = user?.tenantPerson?.leases?.[0];
+    if (lease) {
+      where.propertyId = lease.propertyId;
+    }
+  }
 
   const skip = (page - 1) * limit;
 
@@ -112,10 +124,10 @@ async function getById(id) {
 /**
  * Crear un nuevo registro de servicio publico.
  */
-async function create(data, file) {
+async function create(data, tenantId, file) {
   const createData = {
     propertyId: Number(data.propertyId),
-    tenantId: Number(data.tenantId),
+    tenantId: Number(tenantId),
     type: data.type,
     amount: parseFloat(data.amount),
     period: data.period,

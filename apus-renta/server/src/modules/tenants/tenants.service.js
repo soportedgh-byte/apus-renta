@@ -147,7 +147,7 @@ async function update(id, data, tenantId) {
     throw { status: 404, message: 'Arrendatario no encontrado' };
   }
 
-  const { email, password, firstName, lastName, phone, documentType, documentNumber, emergencyContactName, emergencyContactPhone } = data;
+  const { email, password, firstName, lastName, phone, documentType, documentNumber, emergencyContactName, emergencyContactPhone, notes } = data;
 
   const result = await prisma.$transaction(async (tx) => {
     // Actualizar datos del usuario
@@ -171,6 +171,7 @@ async function update(id, data, tenantId) {
     if (documentNumber !== undefined) tenantPersonData.documentNumber = documentNumber;
     if (emergencyContactName !== undefined) tenantPersonData.emergencyContactName = emergencyContactName;
     if (emergencyContactPhone !== undefined) tenantPersonData.emergencyContactPhone = emergencyContactPhone;
+    if (notes !== undefined) tenantPersonData.notes = notes;
 
     let tenantPerson = existingUser.tenantPerson;
     if (Object.keys(tenantPersonData).length > 0 && tenantPerson) {
@@ -188,26 +189,36 @@ async function update(id, data, tenantId) {
 }
 
 /**
- * Soft delete: marcar arrendatario como INACTIVE.
+ * Hard delete: eliminar arrendatario y sus relaciones.
  */
 async function remove(id, tenantId) {
-  const existing = await prisma.user.findUnique({ where: { id: Number(id) } });
+  const existing = await prisma.user.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId), role: 'ARRENDATARIO' },
+    include: { tenantPerson: true },
+  });
 
   if (!existing) {
     throw { status: 404, message: 'Arrendatario no encontrado' };
   }
 
-  if (existing.tenantId !== Number(tenantId)) {
-    throw { status: 403, message: 'No tiene permisos para eliminar este arrendatario' };
-  }
-
-  const user = await prisma.user.update({
-    where: { id: Number(id) },
-    data: { status: 'INACTIVE' },
+  // Delete TenantPerson first (if exists), then User
+  await prisma.$transaction(async (tx) => {
+    if (existing.tenantPerson) {
+      // Delete leases associated with this tenant person first
+      await tx.lease.deleteMany({ where: { tenantPersonId: existing.tenantPerson.id } });
+      await tx.tenantPerson.delete({ where: { id: existing.tenantPerson.id } });
+    }
+    // Delete payments by this user
+    await tx.payment.deleteMany({ where: { userId: Number(id) } });
+    // Delete PQRS by this user
+    await tx.pQRS.deleteMany({ where: { userId: Number(id) } });
+    // Delete audit logs by this user
+    await tx.auditLog.deleteMany({ where: { userId: Number(id) } });
+    // Finally delete the user
+    await tx.user.delete({ where: { id: Number(id) } });
   });
 
-  const { passwordHash: _, ...userWithoutPassword } = user;
-  return userWithoutPassword;
+  return { message: 'Arrendatario eliminado correctamente' };
 }
 
 module.exports = {
