@@ -25,7 +25,7 @@ async function getSummary(req, res) {
 
 async function getById(req, res) {
   try {
-    const utility = await utilitiesService.getById(req.params.id);
+    const utility = await utilitiesService.getById(req.params.id, req.user.tenantId);
     return success(res, utility, 'Servicio publico obtenido');
   } catch (err) {
     console.error('Utilities.getById error:', err);
@@ -45,7 +45,7 @@ async function create(req, res) {
 
 async function update(req, res) {
   try {
-    const utility = await utilitiesService.update(req.params.id, req.body);
+    const utility = await utilitiesService.update(req.params.id, req.body, req.user.tenantId);
     return success(res, utility, 'Servicio publico actualizado exitosamente');
   } catch (err) {
     console.error('Utilities.update error:', err);
@@ -56,7 +56,7 @@ async function update(req, res) {
 async function updateStatus(req, res) {
   try {
     const { status } = req.body;
-    const utility = await utilitiesService.updateStatus(req.params.id, status);
+    const utility = await utilitiesService.updateStatus(req.params.id, req.body.status, req.user.tenantId);
     return success(res, utility, 'Estado actualizado exitosamente');
   } catch (err) {
     console.error('Utilities.updateStatus error:', err);

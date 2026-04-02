@@ -23,7 +23,6 @@ async function list(tenantId, userId, role, { page = 1, limit = 10, status, type
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true } },
         property: { select: { id: true, name: true, address: true } },
-        assignedUser: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
       skip,
       take: Number(limit),
@@ -44,7 +43,6 @@ async function getById(id) {
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
       property: { select: { id: true, name: true, address: true } },
-      assignedUser: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 
@@ -75,7 +73,7 @@ async function create(data, userId, tenantId, files) {
       subject: data.subject,
       description: data.description,
       status: 'RADICADA',
-      attachments: JSON.stringify(attachments),
+      attachments: attachments,
     },
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -108,7 +106,6 @@ async function update(id, data, tenantId) {
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
       property: { select: { id: true, name: true, address: true } },
-      assignedUser: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 
@@ -133,7 +130,6 @@ async function assign(id, assignedTo, tenantId) {
     include: {
       user: { select: { id: true, firstName: true, lastName: true, email: true } },
       property: { select: { id: true, name: true, address: true } },
-      assignedUser: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 

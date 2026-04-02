@@ -108,10 +108,10 @@ async function getSummary(tenantId) {
 /**
  * Obtener un servicio publico por ID.
  */
-async function getById(id) {
-  const utility = await prisma.utilityBill.findUnique({
-    where: { id: Number(id) },
-    include: { property: true },
+async function getById(id, tenantId) {
+  const utility = await prisma.utilityBill.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
+    include: { property: { select: { id: true, name: true, address: true } } },
   });
 
   if (!utility) {
@@ -150,8 +150,10 @@ async function create(data, tenantId, file) {
 /**
  * Actualizar un servicio publico.
  */
-async function update(id, data) {
-  const existing = await prisma.utilityBill.findUnique({ where: { id: Number(id) } });
+async function update(id, data, tenantId) {
+  const existing = await prisma.utilityBill.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
+  });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
@@ -172,19 +174,24 @@ async function update(id, data) {
 /**
  * Actualizar solo el estado de un servicio publico.
  */
-async function updateStatus(id, status) {
-  const existing = await prisma.utilityBill.findUnique({ where: { id: Number(id) } });
+async function updateStatus(id, status, tenantId) {
+  const existing = await prisma.utilityBill.findFirst({
+    where: { id: Number(id), tenantId: Number(tenantId) },
+  });
   if (!existing) {
     throw { status: 404, message: 'Servicio publico no encontrado' };
   }
 
-  const utility = await prisma.utilityBill.update({
-    where: { id: Number(id) },
-    data: { status },
-    include: { property: true },
-  });
+  const updateData = { status };
+  if (status === 'PAGADO') {
+    updateData.paidDate = new Date();
+  }
 
-  return utility;
+  return prisma.utilityBill.update({
+    where: { id: Number(id) },
+    data: updateData,
+    include: { property: { select: { id: true, name: true } } },
+  });
 }
 
 module.exports = {

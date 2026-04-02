@@ -44,7 +44,11 @@ async function getProfile(req, res) {
 
 async function updateProfile(req, res) {
   try {
-    const user = await authService.updateProfile(req.user.id, req.body);
+    const data = req.body || {};
+    if (req.file) {
+      data.avatar = req.file.path.replace(/\\/g, '/');
+    }
+    const user = await authService.updateProfile(req.user.id, data);
     return success(res, user, 'Perfil actualizado exitosamente');
   } catch (err) {
     console.error('Auth.updateProfile error:', err);

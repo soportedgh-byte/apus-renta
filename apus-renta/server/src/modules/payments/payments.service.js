@@ -95,6 +95,7 @@ async function create(data, userId, tenantId, file) {
   const paymentData = {
     leaseId: Number(leaseId),
     userId: Number(userId),
+    tenantId: Number(tenantId),
     amount: parseFloat(amount),
     paymentDate: new Date(paymentDate),
     method,

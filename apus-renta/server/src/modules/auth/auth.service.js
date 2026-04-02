@@ -157,7 +157,7 @@ async function updateProfile(userId, data) {
   }
 
   const user = await prisma.user.update({
-    where: { id: userId },
+    where: { id: Number(userId) },
     data: updateData,
   });
 
@@ -169,7 +169,7 @@ async function updateProfile(userId, data) {
  * Change user password after verifying the current one.
  */
 async function changePassword(userId, currentPassword, newPassword) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
   if (!user) {
     throw { status: 404, message: 'Usuario no encontrado' };
   }
@@ -181,7 +181,7 @@ async function changePassword(userId, currentPassword, newPassword) {
 
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: Number(userId) },
     data: { passwordHash: hashedPassword },
   });
 
