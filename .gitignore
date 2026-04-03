@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════════
+# CecilIA v2 — Archivo .gitignore
+# Contraloría General de la República de Colombia
+# ═══════════════════════════════════════════════════════
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node.js
+node_modules/
+.next/
+out/
+.turbo/
+
+# Env
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+corpus/**/*.pdf
+corpus/**/*.docx
+
+# Desktop Agent
+desktop-agent/dist/
+desktop-agent/out/

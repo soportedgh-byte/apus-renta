@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cecilia-v2"
+version = "2.0.0"
+description = "CecilIA v2 — Sistema de IA para Control Fiscal — Contraloria General de la Republica de Colombia"
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.12"
+authors = [
+    {name = "Equipo Tecnico CecilIA — CD-TIC-CGR"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Private :: Do Not Upload",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "integracion: pruebas de integracion (requieren servicios externos)",
+    "lento: pruebas de ejecucion prolongada",
+    "unitario: pruebas unitarias aisladas",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true

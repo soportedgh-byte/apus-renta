@@ -1,0 +1,130 @@
+# ═══════════════════════════════════════════════════════
+# CecilIA v2 — Docker Compose (Producción)
+# Contraloría General de la República de Colombia
+# ═══════════════════════════════════════════════════════
+#
+# Uso:
+#   docker compose up -d
+#   docker compose logs -f backend
+#
+# Para desarrollo con recarga en caliente:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ═══════════════════════════════════════════════════════
+
+name: cecilia-v2
+
+services:
+  # ─────────────────────────────────────────────────────
+  # Base de datos PostgreSQL 16 con extensión pgvector
+  # ─────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: cecilia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cecilia
+      POSTGRES_PASSWORD: cecilia_2026
+      POSTGRES_DB: cecilia_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cecilia -d cecilia_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cecilia-net
+
+  # ─────────────────────────────────────────────────────
+  # Redis 8 Alpine — Caché y cola de tareas
+  # ─────────────────────────────────────────────────────
+  redis:
+    image: redis:8-alpine
+    container_name: cecilia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - cecilia-net
+
+  # ─────────────────────────────────────────────────────
+  # Backend — FastAPI (Python 3.12)
+  # ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cecilia-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://cecilia:cecilia_2026@postgres:5432/cecilia_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cecilia-net
+
+  # ─────────────────────────────────────────────────────
+  # Frontend — Next.js 15 (React 19)
+  # ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cecilia-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000/api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - cecilia-net
+
+# ─────────────────────────────────────────────────────
+# Volúmenes persistentes
+# ─────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────
+# Red interna
+# ─────────────────────────────────────────────────────
+networks:
+  cecilia-net:
+    driver: bridge

@@ -1,0 +1,31 @@
+# CecilIA v2 — Dependencias Backend
+# Contraloria General de la Republica de Colombia
+# Sprint: 0 | Abril 2026
+
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pydantic==2.11.3
+pydantic-settings==2.9.1
+sqlalchemy==2.0.41
+asyncpg==0.30.0
+alembic==1.15.2
+psycopg2-binary==2.9.10
+redis==5.3.0
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.3.0
+python-multipart==0.0.20
+langchain==0.3.25
+langchain-openai==0.3.18
+langchain-community==0.3.24
+langgraph==0.4.7
+pgvector==0.4.0
+pymupdf==1.25.5
+python-docx==1.1.2
+openpyxl==3.1.5
+pytesseract==0.3.13
+opentelemetry-api==1.33.1
+opentelemetry-sdk==1.33.1
+opentelemetry-instrumentation-fastapi==0.54b1
+httpx==0.28.1
+sse-starlette==2.3.3

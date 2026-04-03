@@ -1,0 +1,74 @@
+# ═══════════════════════════════════════════════════════
+# CecilIA v2 — Docker Compose Override (Desarrollo)
+# Contraloría General de la República de Colombia
+# ═══════════════════════════════════════════════════════
+#
+# Este archivo sobreescribe docker-compose.yml para desarrollo local.
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Características:
+#   - Montaje de volúmenes para recarga en caliente (hot reload)
+#   - Puertos de depuración expuestos
+#   - Variables de entorno para modo desarrollo
+# ═══════════════════════════════════════════════════════
+
+services:
+  # ─────────────────────────────────────────────────────
+  # Backend — Modo desarrollo con recarga automática
+  # ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/tests:/app/tests
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+    # Puerto de depuración para debugpy (VS Code / PyCharm)
+    ports:
+      - "8000:8000"
+      - "5678:5678"
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/app
+
+  # ─────────────────────────────────────────────────────
+  # Frontend — Modo desarrollo con Fast Refresh
+  # ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    command: npm run dev
+
+  # ─────────────────────────────────────────────────────
+  # PostgreSQL — Puerto expuesto para herramientas locales
+  # ─────────────────────────────────────────────────────
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # ─────────────────────────────────────────────────────
+  # Redis — Puerto expuesto para depuración
+  # ─────────────────────────────────────────────────────
+  redis:
+    ports:
+      - "6379:6379"

@@ -1,0 +1,160 @@
+'use client';
+
+import React from 'react';
+import {
+  User,
+  Bot,
+  BookOpen,
+  AlertTriangle,
+  Copy,
+  Check,
+} from 'lucide-react';
+import { Insignia } from '@/components/ui/badge';
+import { BotonesFeedback } from './FeedbackButtons';
+import { RespuestaStreaming } from './StreamingResponse';
+import type { Mensaje, CitaFuente, Direccion } from '@/lib/types';
+
+interface PropiedadesBurbuja {
+  mensaje: Mensaje;
+  direccion: Direccion;
+  /** Si es un mensaje en streaming aun en curso */
+  enStreaming?: boolean;
+  alEnviarFeedback?: (mensajeId: string, tipo: 'positivo' | 'negativo') => void;
+}
+
+/**
+ * Burbuja de mensaje individual en el chat
+ * Coloreada segun rol: DES azul, DVF verde para usuario; oscuro para asistente
+ */
+export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedback }: PropiedadesBurbuja) {
+  const [copiado, setCopiado] = React.useState(false);
+  const esUsuario = mensaje.rol === 'user';
+
+  const colorUsuario = direccion === 'DES' ? '#1A5276' : '#1E8449';
+
+  const copiarContenido = () => {
+    navigator.clipboard.writeText(mensaje.contenido);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  return (
+    <div className={`flex gap-3 px-4 py-4 ${esUsuario ? '' : 'bg-[#0F1419]/50'}`}>
+      {/* Avatar */}
+      <div className="flex-shrink-0">
+        {esUsuario ? (
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `${colorUsuario}30`, border: `1px solid ${colorUsuario}50` }}
+          >
+            <User className="h-4 w-4" style={{ color: colorUsuario }} />
+          </div>
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/20">
+            <Bot className="h-4 w-4 text-[#C9A84C]" />
+          </div>
+        )}
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 min-w-0">
+        {/* Nombre y hora */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-medium text-[#E8EAED]">
+            {esUsuario ? 'Tu' : 'CecilIA'}
+          </span>
+          {!esUsuario && mensaje.modelo_llm && (
+            <Insignia variante="gris" className="text-[9px]">
+              {mensaje.modelo_llm}
+            </Insignia>
+          )}
+          <span className="text-[10px] text-[#5F6368]">
+            {new Date(mensaje.fecha_creacion).toLocaleTimeString('es-CO', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+
+        {/* Texto del mensaje */}
+        {enStreaming ? (
+          <RespuestaStreaming texto={mensaje.contenido} enCurso={true} />
+        ) : (
+          <div className="whitespace-pre-wrap text-sm text-[#E8EAED] leading-relaxed">
+            {mensaje.contenido}
+          </div>
+        )}
+
+        {/* Banner de validacion para respuestas de IA */}
+        {!esUsuario && !enStreaming && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#C9A84C]/20 bg-[#C9A84C]/5 px-3 py-2">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-[#C9A84C]" />
+            <span className="text-[10px] text-[#C9A84C]/80">
+              Requiere validacion del auditor — CecilIA es un asistente, no reemplaza el juicio profesional
+            </span>
+          </div>
+        )}
+
+        {/* Citas de fuentes */}
+        {mensaje.citas && mensaje.citas.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            <p className="text-[10px] font-medium text-[#5F6368] uppercase tracking-wider">
+              Fuentes consultadas
+            </p>
+            {mensaje.citas.map((cita, indice) => (
+              <CitaFuenteComponent key={indice} cita={cita} indice={indice + 1} />
+            ))}
+          </div>
+        )}
+
+        {/* Acciones del mensaje (solo para respuestas de IA) */}
+        {!esUsuario && !enStreaming && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={copiarContenido}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-[#5F6368] hover:text-[#9AA0A6] hover:bg-[#1A2332] transition-colors"
+            >
+              {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copiado ? 'Copiado' : 'Copiar'}
+            </button>
+            <BotonesFeedback
+              mensajeId={mensaje.id}
+              feedbackActual={mensaje.feedback}
+              alEnviarFeedback={alEnviarFeedback}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Componente individual de cita de fuente */
+function CitaFuenteComponent({ cita, indice }: { cita: CitaFuente; indice: number }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg bg-[#0A0F14]/60 px-3 py-2 border border-[#2D3748]/30">
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-[#1A5276]/20 text-[9px] font-mono text-[#2471A3]">
+        {indice}
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-3 w-3 flex-shrink-0 text-[#5F6368]" />
+          <span className="text-[10px] font-medium text-[#9AA0A6] truncate">
+            {cita.documento}
+          </span>
+          {cita.pagina && (
+            <span className="text-[9px] text-[#5F6368]">p. {cita.pagina}</span>
+          )}
+          <Insignia variante="gris" className="text-[8px]">
+            {cita.coleccion}
+          </Insignia>
+        </div>
+        <p className="mt-0.5 text-[10px] text-[#5F6368] line-clamp-2 italic">
+          &ldquo;{cita.fragmento}&rdquo;
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default BurbujaMensaje;

@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+
+/* =============================================================================
+   CecilIA v2 - Estilos Globales
+   Contraloria General de la Republica de Colombia
+   ============================================================================= */
+
+/* Variables de color personalizadas */
+:root {
+  /* Colores institucionales */
+  --color-des: #1A5276;
+  --color-des-claro: #2471A3;
+  --color-des-oscuro: #154360;
+
+  --color-dvf: #1E8449;
+  --color-dvf-claro: #27AE60;
+  --color-dvf-oscuro: #196F3D;
+
+  --color-oro: #C9A84C;
+  --color-oro-claro: #D4B96A;
+  --color-oro-oscuro: #A88B3D;
+
+  /* Fondos */
+  --color-fondo: #0F1419;
+  --color-fondo-claro: #1A2332;
+  --color-tarjeta: #1A2332;
+  --color-tarjeta-clara: #243044;
+  --color-barra: #0A0F14;
+
+  /* Texto */
+  --color-texto: #E8EAED;
+  --color-texto-secundario: #9AA0A6;
+  --color-texto-terciario: #5F6368;
+
+  /* Bordes */
+  --color-borde: #2D3748;
+  --color-borde-claro: #4A5568;
+
+  /* Fuentes */
+  --fuente-titulo: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  --fuente-interfaz: 'Inter', system-ui, -apple-system, sans-serif;
+  --fuente-codigo: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Radio de bordes */
+  --radio-sm: 0.375rem;
+  --radio-md: 0.5rem;
+  --radio-lg: 0.75rem;
+  --radio-xl: 1rem;
+}
+
+/* Tema oscuro por defecto */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--fuente-interfaz);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-fondo);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-borde);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-borde-claro);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-borde) var(--color-fondo);
+}
+
+/* Seleccion de texto */
+::selection {
+  background-color: rgba(201, 168, 76, 0.3);
+  color: var(--color-texto);
+}
+
+/* Efecto de vidrio (glass) */
+.glass {
+  background: rgba(26, 35, 50, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-fuerte {
+  background: rgba(26, 35, 50, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Gradientes institucionales */
+.gradiente-oro {
+  background: linear-gradient(135deg, #C9A84C 0%, #D4B96A 50%, #A88B3D 100%);
+}
+
+.gradiente-des {
+  background: linear-gradient(135deg, #1A5276 0%, #2471A3 100%);
+}
+
+.gradiente-dvf {
+  background: linear-gradient(135deg, #1E8449 0%, #27AE60 100%);
+}
+
+.gradiente-fondo {
+  background: linear-gradient(180deg, #0F1419 0%, #1A2332 50%, #0F1419 100%);
+}
+
+/* Animacion de cursor de escritura */
+.cursor-escritura::after {
+  content: '|';
+  animation: parpadeo-cursor 1s step-end infinite;
+  color: var(--color-oro);
+  font-weight: 100;
+}
+
+@keyframes parpadeo-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Animacion de pulso para indicador de conexion */
+.pulso-conexion {
+  animation: pulso-punto 2s infinite;
+}
+
+@keyframes pulso-punto {
+  0% {
+    box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(39, 174, 96, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(39, 174, 96, 0);
+  }
+}
+
+/* Resplandor dorado para elementos destacados */
+.resplandor-oro {
+  box-shadow: 0 0 20px rgba(201, 168, 76, 0.15),
+              0 0 40px rgba(201, 168, 76, 0.05);
+}
+
+/* Sombra elevada para tarjetas */
+.sombra-tarjeta {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3),
+              0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+
+.sombra-tarjeta:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4),
+              0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* Transiciones suaves globales */
+.transicion-suave {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estilos para codigo en mensajes */
+.codigo-bloque {
+  font-family: var(--fuente-codigo);
+  background: rgba(10, 15, 20, 0.8);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-md);
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+/* Focus visible para accesibilidad */
+:focus-visible {
+  outline: 2px solid var(--color-oro);
+  outline-offset: 2px;
+}
+
+/* Deshabilitar animaciones si el usuario lo prefiere */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

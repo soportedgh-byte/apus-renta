@@ -1,0 +1,200 @@
+# ============================================================================
+# CecilIA v2 — Sistema de IA para Control Fiscal
+# Contraloría General de la República de Colombia
+#
+# Archivo : otel-collector.yaml
+# Propósito: Configuración del colector OpenTelemetry — recepción de trazas OTLP y exportación a Grafana Loki
+# Sprint  : 0
+# Autor   : Equipo Técnico CecilIA — CD-TIC-CGR
+# Fecha   : Abril 2026
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Receptores: puntos de entrada de telemetría
+# ---------------------------------------------------------------------------
+receivers:
+  # Receptor OTLP (gRPC y HTTP)
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+        max_recv_msg_size_mib: 4
+      http:
+        endpoint: "0.0.0.0:4318"
+        cors:
+          allowed_origins:
+            - "https://cecilia.contraloria.gov.co"
+          allowed_headers:
+            - "*"
+
+  # Receptor de métricas de host (CPU, memoria, disco)
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk: {}
+      network: {}
+
+# ---------------------------------------------------------------------------
+# Procesadores: transformación y filtrado de telemetría
+# ---------------------------------------------------------------------------
+processors:
+  # Procesamiento por lotes para optimizar exportación
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  # Limitación de memoria para evitar OOM
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Agregar atributos del recurso
+  resource:
+    attributes:
+      - key: service.namespace
+        value: "cecilia-v2"
+        action: upsert
+      - key: deployment.environment
+        value: "production"
+        action: upsert
+      - key: service.version
+        value: "2.0.0"
+        action: upsert
+
+  # Filtrar trazas de health-check para reducir ruido
+  filter/health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.target"] == "/api/v1/health"'
+        - 'attributes["http.route"] == "/api/v1/health"'
+
+  # Transformar atributos para compatibilidad con Loki
+  attributes/loki:
+    actions:
+      - key: loki.attribute.labels
+        value: "service.name,service.namespace,severity,http.method,http.status_code"
+        action: upsert
+
+# ---------------------------------------------------------------------------
+# Exportadores: destinos de la telemetría
+# ---------------------------------------------------------------------------
+exporters:
+  # Exportar trazas y logs a Grafana Loki
+  loki:
+    endpoint: "http://loki:3100/loki/api/v1/push"
+    default_labels_enabled:
+      exporter: true
+      job: true
+      instance: true
+      level: true
+
+  # Exportar métricas a Prometheus (compatible con Grafana)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "cecilia"
+    const_labels:
+      environment: "production"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Exportar trazas a OTLP (Grafana Tempo u otro backend)
+  otlp/traces:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Logging local para depuración (solo en desarrollo)
+  logging:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+# ---------------------------------------------------------------------------
+# Extensiones: componentes auxiliares
+# ---------------------------------------------------------------------------
+extensions:
+  # Health check del propio colector
+  health_check:
+    endpoint: "0.0.0.0:13133"
+    path: "/health"
+
+  # Endpoint para diagnóstico (zpages)
+  zpages:
+    endpoint: "0.0.0.0:55679"
+
+  # Performance profiler
+  pprof:
+    endpoint: "0.0.0.0:1777"
+
+# ---------------------------------------------------------------------------
+# Pipelines: definición de flujos de telemetría
+# ---------------------------------------------------------------------------
+service:
+  extensions:
+    - health_check
+    - zpages
+    - pprof
+
+  pipelines:
+    # Pipeline de trazas
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - filter/health
+        - resource
+        - batch
+      exporters:
+        - otlp/traces
+        - logging
+
+    # Pipeline de métricas
+    metrics:
+      receivers:
+        - otlp
+        - hostmetrics
+      processors:
+        - memory_limiter
+        - resource
+        - batch
+      exporters:
+        - prometheus
+
+    # Pipeline de logs
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource
+        - attributes/loki
+        - batch
+      exporters:
+        - loki
+        - logging
+
+  # Telemetría del propio colector
+  telemetry:
+    logs:
+      level: "info"
+      encoding: "json"
+    metrics:
+      level: "basic"
+      address: "0.0.0.0:8888"
