@@ -1,11 +1,11 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: state.py
-Propósito: Definición del estado tipado (AuditState) para el grafo LangGraph
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Definicion del estado tipado (AuditState) para el grafo LangGraph
+Sprint: 2
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
@@ -15,15 +15,13 @@ from typing import Optional, TypedDict
 
 
 class AuditState(TypedDict, total=False):
-    """Estado compartido entre todos los nodos del grafo de auditoría.
+    """Estado compartido entre todos los nodos del grafo de auditoria.
 
-    Cada campo representa un aspecto del contexto de la conversación
-    y del proceso auditor en curso. Los campos opcionales (``total=False``)
-    permiten que el estado se construya progresivamente a medida que
-    el usuario interactúa con el sistema.
+    Cada campo representa un aspecto del contexto de la conversacion
+    y del proceso auditor en curso.
     """
 
-    # --- Mensajes de la conversación (formato LangChain) ---
+    # --- Mensajes de la conversacion (formato LangChain) ---
     messages: list
 
     # --- Identidad y permisos del usuario ---
@@ -34,6 +32,9 @@ class AuditState(TypedDict, total=False):
     # --- Contexto del proceso auditor ---
     fase_actual: str  # preplaneacion | planeacion | ejecucion | informe | seguimiento
     proyecto_auditoria_id: Optional[str]
+    sujeto_control: Optional[str]
+    vigencia: Optional[str]
+    tipo_auditoria: Optional[str]  # financiera | desempeno | cumplimiento | especial
 
     # --- RAG ---
     contexto_rag: list  # Fragmentos recuperados por el retriever
@@ -45,8 +46,15 @@ class AuditState(TypedDict, total=False):
     respuesta_final: str
     fuentes: list  # Referencias normativas / documentales citadas
 
-    # --- Configuración del modelo ---
+    # --- Configuracion del modelo ---
     modelo: str  # Identificador del modelo LLM activo
 
-    # --- Sesión ---
+    # --- Sesion ---
     session_id: str
+
+    # --- Campos adicionales Sprint 2 ---
+    documentos_cargados: list
+    hallazgos_en_progreso: list
+    formatos_generados: list
+    acciones_disponibles: list
+    modulo: str  # supervisor | fase_N | transversal

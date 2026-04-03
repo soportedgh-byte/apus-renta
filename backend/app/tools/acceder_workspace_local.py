@@ -177,7 +177,7 @@ def _leer_archivo(ruta: Path) -> str:
 
         elif extension in {".pdf", ".docx", ".xlsx", ".xls"}:
             # Delegamos a la pipeline de ingestión
-            from backend.app.rag.ingesta import ingestar_documento
+            from app.rag.ingesta import ingestar_documento
             doc = ingestar_documento(ruta)
             return f"Contenido extraído de {ruta.name}:\n\n{doc.contenido}"
 

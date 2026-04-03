@@ -1,11 +1,12 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: graph.py
-Propósito: Grafo principal LangGraph — orquestación de agentes de auditoría
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Grafo principal LangGraph — orquestacion de agentes de auditoria
+           con inyeccion de LLM y checkpointing PostgreSQL
+Sprint: 2
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
@@ -16,67 +17,115 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
-from backend.app.agents.state import AuditState
-from backend.app.agents.supervisor import enrutar_consulta
-from backend.app.agents.fase_0_preplaneacion import ejecutar_preplaneacion
-from backend.app.agents.fase_1_planeacion import ejecutar_planeacion
-from backend.app.agents.fase_2_ejecucion import ejecutar_ejecucion
-from backend.app.agents.fase_3_informe import ejecutar_informe
-from backend.app.agents.fase_4_seguimiento import ejecutar_seguimiento
-from backend.app.agents.transversales.analista_financiero import ejecutar_analisis_financiero
-from backend.app.agents.transversales.normativo_juridico import ejecutar_analisis_normativo
-from backend.app.agents.transversales.generador_formatos import ejecutar_generador_formatos
-from backend.app.agents.transversales.detector_fraude import ejecutar_detector_fraude
+from app.agents.state import AuditState
+from app.agents.supervisor import enrutar_consulta
+from app.agents.fase_0_preplaneacion import ejecutar_preplaneacion
+from app.agents.fase_1_planeacion import ejecutar_planeacion
+from app.agents.fase_2_ejecucion import ejecutar_ejecucion
+from app.agents.fase_3_informe import ejecutar_informe
+from app.agents.fase_4_seguimiento import ejecutar_seguimiento
+from app.agents.transversales.analista_financiero import ejecutar_analisis_financiero
+from app.agents.transversales.normativo_juridico import ejecutar_analisis_normativo
+from app.agents.transversales.generador_formatos import ejecutar_generador_formatos
+from app.agents.transversales.detector_fraude import ejecutar_detector_fraude
 
 logger = logging.getLogger("cecilia.agents.graph")
 
 # ---------------------------------------------------------------------------
-# Construcción del grafo
+# Wrappers que inyectan el LLM a cada agente
 # ---------------------------------------------------------------------------
 
+_llm_instance = None
+
+
+def _obtener_llm():
+    """Obtiene o crea la instancia del LLM (lazy singleton)."""
+    global _llm_instance
+    if _llm_instance is None:
+        from app.llm import obtener_llm
+        _llm_instance = obtener_llm()
+        logger.info("LLM inicializado para el grafo: %s", type(_llm_instance).__name__)
+    return _llm_instance
+
+
 def _nodo_supervisor(state: AuditState) -> AuditState:
-    """Nodo supervisor: solo determina la ruta, no modifica el estado."""
+    """Nodo supervisor: determina la ruta usando el LLM si es necesario."""
     return state
 
 
 def _decidir_ruta(state: AuditState) -> str:
-    """Función de decisión condicional para las aristas del grafo."""
-    destino: str = enrutar_consulta(state)
+    """Funcion de decision condicional para las aristas del grafo."""
+    llm = _obtener_llm()
+    destino: str = enrutar_consulta(state, llm=llm)
     logger.info("Supervisor enruta a: %s", destino)
     return destino
 
 
+# Wrappers para cada agente que inyectan el LLM
+def _nodo_fase_0(state: AuditState) -> AuditState:
+    return ejecutar_preplaneacion(state, llm=_obtener_llm())
+
+
+def _nodo_fase_1(state: AuditState) -> AuditState:
+    return ejecutar_planeacion(state, llm=_obtener_llm())
+
+
+def _nodo_fase_2(state: AuditState) -> AuditState:
+    return ejecutar_ejecucion(state, llm=_obtener_llm())
+
+
+def _nodo_fase_3(state: AuditState) -> AuditState:
+    return ejecutar_informe(state, llm=_obtener_llm())
+
+
+def _nodo_fase_4(state: AuditState) -> AuditState:
+    return ejecutar_seguimiento(state, llm=_obtener_llm())
+
+
+def _nodo_financiero(state: AuditState) -> AuditState:
+    return ejecutar_analisis_financiero(state, llm=_obtener_llm())
+
+
+def _nodo_normativo(state: AuditState) -> AuditState:
+    return ejecutar_analisis_normativo(state, llm=_obtener_llm())
+
+
+def _nodo_formatos(state: AuditState) -> AuditState:
+    return ejecutar_generador_formatos(state, llm=_obtener_llm())
+
+
+def _nodo_fraude(state: AuditState) -> AuditState:
+    return ejecutar_detector_fraude(state, llm=_obtener_llm())
+
+
+# ---------------------------------------------------------------------------
+# Construccion del grafo
+# ---------------------------------------------------------------------------
+
 def construir_grafo() -> StateGraph:
-    """Construye y retorna el grafo LangGraph compilado.
+    """Construye y retorna el grafo LangGraph.
 
-    Estructura del grafo:
+    Estructura:
         supervisor --> (condicional) --> agente_fase_N / agente_transversal --> END
-
-    Returns:
-        Grafo LangGraph compilado y listo para ejecutar.
     """
     grafo = StateGraph(AuditState)
 
-    # --- Agregar nodos ---
+    # Agregar nodos
     grafo.add_node("supervisor", _nodo_supervisor)
+    grafo.add_node("fase_0_preplaneacion", _nodo_fase_0)
+    grafo.add_node("fase_1_planeacion", _nodo_fase_1)
+    grafo.add_node("fase_2_ejecucion", _nodo_fase_2)
+    grafo.add_node("fase_3_informe", _nodo_fase_3)
+    grafo.add_node("fase_4_seguimiento", _nodo_fase_4)
+    grafo.add_node("analista_financiero", _nodo_financiero)
+    grafo.add_node("normativo_juridico", _nodo_normativo)
+    grafo.add_node("generador_formatos", _nodo_formatos)
+    grafo.add_node("detector_fraude", _nodo_fraude)
 
-    # Nodos de fase
-    grafo.add_node("fase_0_preplaneacion", ejecutar_preplaneacion)
-    grafo.add_node("fase_1_planeacion", ejecutar_planeacion)
-    grafo.add_node("fase_2_ejecucion", ejecutar_ejecucion)
-    grafo.add_node("fase_3_informe", ejecutar_informe)
-    grafo.add_node("fase_4_seguimiento", ejecutar_seguimiento)
-
-    # Nodos transversales
-    grafo.add_node("analista_financiero", ejecutar_analisis_financiero)
-    grafo.add_node("normativo_juridico", ejecutar_analisis_normativo)
-    grafo.add_node("generador_formatos", ejecutar_generador_formatos)
-    grafo.add_node("detector_fraude", ejecutar_detector_fraude)
-
-    # --- Punto de entrada ---
+    # Punto de entrada
     grafo.set_entry_point("supervisor")
 
-    # --- Aristas condicionales desde el supervisor ---
+    # Aristas condicionales
     destinos: dict[str, str] = {
         "fase_0_preplaneacion": "fase_0_preplaneacion",
         "fase_1_planeacion": "fase_1_planeacion",
@@ -91,7 +140,7 @@ def construir_grafo() -> StateGraph:
 
     grafo.add_conditional_edges("supervisor", _decidir_ruta, destinos)
 
-    # --- Todas las fases y transversales terminan en END ---
+    # Todos terminan en END
     for nodo in destinos.values():
         grafo.add_edge(nodo, END)
 
@@ -103,40 +152,44 @@ _grafo_compilado: Any | None = None
 
 
 def obtener_grafo() -> Any:
-    """Retorna el grafo compilado como singleton.
-
-    Returns:
-        Instancia compilada del grafo LangGraph.
-    """
+    """Retorna el grafo compilado como singleton."""
     global _grafo_compilado
     if _grafo_compilado is None:
         _grafo_compilado = construir_grafo().compile()
-        logger.info("Grafo LangGraph compilado exitosamente.")
+        logger.info("Grafo LangGraph compilado exitosamente con LLM inyectado.")
     return _grafo_compilado
 
 
 def ejecutar_grafo(state: AuditState) -> AuditState:
-    """Ejecuta el grafo completo con el estado proporcionado.
-
-    Args:
-        state: Estado inicial con mensajes del usuario y contexto.
-
-    Returns:
-        Estado final con la respuesta generada y metadatos.
-    """
+    """Ejecuta el grafo completo con el estado proporcionado."""
     grafo = obtener_grafo()
     try:
         resultado: AuditState = grafo.invoke(state)
         logger.info(
-            "Grafo ejecutado exitosamente. Fuentes: %d",
+            "Grafo ejecutado. Fuentes: %d",
             len(resultado.get("fuentes", [])),
         )
         return resultado
     except Exception:
         logger.exception("Error al ejecutar el grafo LangGraph.")
         state["respuesta_final"] = (
-            "Ocurrió un error interno al procesar su consulta. "
+            "Ocurrio un error interno al procesar su consulta. "
             "Por favor intente nuevamente o contacte al administrador."
         )
         state["fuentes"] = []
         return state
+
+
+async def ejecutar_grafo_streaming(state: AuditState):
+    """Ejecuta el grafo con streaming — yield eventos a medida que se generan."""
+    grafo = obtener_grafo()
+    try:
+        async for evento in grafo.astream(state, stream_mode="values"):
+            yield evento
+    except Exception:
+        logger.exception("Error en streaming del grafo.")
+        state["respuesta_final"] = (
+            "Error interno al procesar su consulta en modo streaming."
+        )
+        state["fuentes"] = []
+        yield state

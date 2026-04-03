@@ -9,9 +9,9 @@ Autor: Equipo Técnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-from backend.app.agents.state import AuditState
-from backend.app.agents.graph import ejecutar_grafo, obtener_grafo
-from backend.app.agents.supervisor import enrutar_consulta
+from app.agents.state import AuditState
+from app.agents.graph import ejecutar_grafo, obtener_grafo
+from app.agents.supervisor import enrutar_consulta
 
 __all__: list[str] = [
     "AuditState",

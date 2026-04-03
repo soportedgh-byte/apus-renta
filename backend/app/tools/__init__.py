@@ -9,14 +9,14 @@ Autor: Equipo Técnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-from backend.app.tools.buscar_normativa import buscar_normativa
-from backend.app.tools.calcular_materialidad import calcular_materialidad
-from backend.app.tools.calcular_muestra import calcular_muestra
-from backend.app.tools.analizar_benford import analizar_benford
-from backend.app.tools.analisis_financiero import analisis_financiero
-from backend.app.tools.analisis_contratacion import analisis_contratacion
-from backend.app.tools.generar_formato import generar_formato
-from backend.app.tools.acceder_workspace_local import acceder_workspace_local
+from app.tools.buscar_normativa import buscar_normativa
+from app.tools.calcular_materialidad import calcular_materialidad
+from app.tools.calcular_muestra import calcular_muestra
+from app.tools.analizar_benford import analizar_benford
+from app.tools.analisis_financiero import analisis_financiero
+from app.tools.analisis_contratacion import analisis_contratacion
+from app.tools.generar_formato import generar_formato
+from app.tools.acceder_workspace_local import acceder_workspace_local
 
 TODAS_LAS_HERRAMIENTAS: list = [
     buscar_normativa,

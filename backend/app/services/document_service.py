@@ -19,9 +19,9 @@ from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.rag.ingesta import DocumentoIngestado, ingestar_documento
-from backend.app.rag.chunking import Fragmento, dividir_en_fragmentos
-from backend.app.rag.embeddings import generar_embeddings
+from app.rag.ingesta import DocumentoIngestado, ingestar_documento
+from app.rag.chunking import Fragmento, dividir_en_fragmentos
+from app.rag.embeddings import generar_embeddings
 
 logger = logging.getLogger("cecilia.services.document")
 

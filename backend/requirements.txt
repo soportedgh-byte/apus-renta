@@ -16,9 +16,11 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.3.0
 python-multipart==0.0.20
 langchain==0.3.25
+langchain-anthropic>=0.3.0
 langchain-openai==0.3.18
 langchain-community==0.3.24
 langgraph==0.4.7
+langgraph-checkpoint-postgres>=2.0.0
 openai==1.82.0
 pgvector==0.4.0
 pymupdf==1.25.5

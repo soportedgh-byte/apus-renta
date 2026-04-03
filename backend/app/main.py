@@ -131,6 +131,7 @@ _RUTAS: list[tuple[str, str, str]] = [
     ("app.api.hallazgo_routes", "/api/hallazgos", "Hallazgos"),
     ("app.api.format_routes", "/api/formatos", "Formatos CGR"),
     ("app.api.rag_routes", "/api/rag", "RAG"),
+    ("app.api.config_routes", "/api/config", "Configuracion"),
     ("app.api.integracion_routes", "/api/integraciones", "Integraciones"),
     ("app.api.analytics_routes", "/api/analytics", "Analitica"),
     ("app.api.admin_routes", "/api/admin", "Administracion"),

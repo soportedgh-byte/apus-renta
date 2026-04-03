@@ -13,6 +13,8 @@ import { Insignia } from '@/components/ui/badge';
 import { BotonesFeedback } from './FeedbackButtons';
 import { RespuestaStreaming } from './StreamingResponse';
 import type { Mensaje, CitaFuente, Direccion } from '@/lib/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PropiedadesBurbuja {
   mensaje: Mensaje;
@@ -80,8 +82,20 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
         {enStreaming ? (
           <RespuestaStreaming texto={mensaje.contenido} enCurso={true} />
         ) : (
-          <div className="whitespace-pre-wrap text-sm text-[#E8EAED] leading-relaxed">
-            {mensaje.contenido}
+          <div className="prose prose-invert prose-sm max-w-none text-[#E8EAED] leading-relaxed
+                          prose-headings:text-[#E8EAED] prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
+                          prose-p:my-1.5 prose-li:my-0.5
+                          prose-strong:text-[#C9A84C]
+                          prose-code:text-[#7DCEA0] prose-code:bg-[#1A2332] prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                          prose-pre:bg-[#0A0F14] prose-pre:border prose-pre:border-[#2D3748]/30
+                          prose-a:text-[#2471A3] prose-a:no-underline hover:prose-a:underline
+                          prose-table:border-collapse prose-th:border prose-th:border-[#2D3748] prose-th:px-3 prose-th:py-1 prose-th:bg-[#1A2332]
+                          prose-td:border prose-td:border-[#2D3748] prose-td:px-3 prose-td:py-1
+                          prose-blockquote:border-[#C9A84C]/30 prose-blockquote:text-[#9AA0A6]
+                          prose-hr:border-[#2D3748]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {mensaje.contenido}
+            </ReactMarkdown>
           </div>
         )}
 

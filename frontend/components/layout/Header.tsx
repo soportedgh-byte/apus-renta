@@ -23,6 +23,7 @@ export function Encabezado() {
   const [usuario, setUsuario] = useState<{ nombre_completo: string; rol: string } | null>(null);
   const [direccion, setDireccion] = useState<Direccion | null>(null);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [modeloActivo, setModeloActivo] = useState<string | null>(null);
 
   useEffect(() => {
     const u = obtenerUsuario();
@@ -30,6 +31,22 @@ export function Encabezado() {
       setUsuario({ nombre_completo: u.nombre_completo, rol: u.rol });
     }
     setDireccion(obtenerDireccionActiva());
+  }, []);
+
+  useEffect(() => {
+    const cargarModelo = async () => {
+      try {
+        const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
+        const resp = await fetch(`${urlBase}/config/modelo-activo`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setModeloActivo(data.nombre_display || data.modelo);
+        }
+      } catch {
+        setModeloActivo('claude-sonnet-4-20250514');
+      }
+    };
+    cargarModelo();
   }, []);
 
   const nombreRol: Record<string, string> = {
@@ -58,7 +75,7 @@ export function Encabezado() {
         {/* Modelo activo */}
         <div className="flex items-center gap-1.5 text-xs text-[#9AA0A6]">
           <Cpu className="h-3.5 w-3.5" />
-          <span>claude-sonnet-4-20250514</span>
+          <span>{modeloActivo || 'Conectando...'}</span>
         </div>
 
         {/* Separador */}

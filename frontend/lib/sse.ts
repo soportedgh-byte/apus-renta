@@ -27,7 +27,7 @@ export function iniciarStreaming(
     : null;
 
   const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
-  const url = `${urlBase}/chat/${conversacionId}/stream`;
+  const url = `${urlBase}/chat/enviar`;
 
   let controlador: AbortController | null = new AbortController();
 
@@ -38,7 +38,7 @@ export function iniciarStreaming(
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ mensaje }),
+    body: JSON.stringify({ mensaje, conversacion_id: conversacionId }),
     signal: controlador.signal,
   })
     .then(async (respuesta) => {

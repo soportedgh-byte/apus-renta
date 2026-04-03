@@ -9,10 +9,10 @@ Autor: Equipo Técnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-from backend.app.agents.transversales.analista_financiero import ejecutar_analisis_financiero
-from backend.app.agents.transversales.normativo_juridico import ejecutar_analisis_normativo
-from backend.app.agents.transversales.generador_formatos import ejecutar_generador_formatos
-from backend.app.agents.transversales.detector_fraude import ejecutar_detector_fraude
+from app.agents.transversales.analista_financiero import ejecutar_analisis_financiero
+from app.agents.transversales.normativo_juridico import ejecutar_analisis_normativo
+from app.agents.transversales.generador_formatos import ejecutar_generador_formatos
+from app.agents.transversales.detector_fraude import ejecutar_detector_fraude
 
 __all__: list[str] = [
     "ejecutar_analisis_financiero",

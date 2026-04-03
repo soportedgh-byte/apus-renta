@@ -18,7 +18,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.language_models import BaseChatModel
 
-from backend.app.agents.state import AuditState
+from app.agents.state import AuditState
 
 logger = logging.getLogger("cecilia.agents.transversales.fraude")
 

@@ -1,11 +1,11 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: chat_service.py
-Propósito: Servicio de orquestación de chat — recibe mensajes, ejecuta el grafo, streaming SSE
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Servicio de orquestacion de chat — ejecuta el grafo y streaming SSE
+Sprint: 2
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
@@ -18,41 +18,17 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
-from backend.app.agents.state import AuditState
-from backend.app.agents.graph import ejecutar_grafo
+from app.agents.state import AuditState
+from app.agents.graph import ejecutar_grafo
+from app.llm import obtener_llm, invocar_con_fallback, info_modelo_activo
 
 logger = logging.getLogger("cecilia.services.chat")
 
 
 class ChatService:
-    """Servicio principal de chat que orquesta la interacción con el grafo LangGraph.
-
-    Responsabilidades:
-    - Recibir mensajes del usuario vía API.
-    - Construir el estado inicial del grafo con contexto RAG.
-    - Ejecutar el grafo de agentes.
-    - Transmitir la respuesta vía SSE (Server-Sent Events).
-    - Registrar trazabilidad de cada interacción.
-    """
-
-    def __init__(
-        self,
-        memoria_service: Any = None,
-        trazabilidad_service: Any = None,
-        rag_retriever: Any = None,
-    ) -> None:
-        """Inicializa el servicio de chat.
-
-        Args:
-            memoria_service: Servicio de memoria de sesión.
-            trazabilidad_service: Servicio de trazabilidad.
-            rag_retriever: Retriever RAG para contexto.
-        """
-        self._memoria = memoria_service
-        self._trazabilidad = trazabilidad_service
-        self._retriever = rag_retriever
+    """Servicio principal de chat que orquesta el grafo LangGraph."""
 
     async def procesar_mensaje(
         self,
@@ -63,23 +39,9 @@ class ChatService:
         direccion: str = "DES",
         fase_actual: str = "planeacion",
         proyecto_auditoria_id: Optional[str] = None,
-        modelo: str = "gpt-4o",
+        conversacion_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Procesa un mensaje del usuario y retorna la respuesta completa.
-
-        Args:
-            mensaje: Texto del mensaje del usuario.
-            usuario_id: Identificador del usuario.
-            session_id: Identificador de la sesión.
-            rol: Rol del usuario (auditor, supervisor, gerente, admin).
-            direccion: Dirección (DES o DVF).
-            fase_actual: Fase actual del proceso auditor.
-            proyecto_auditoria_id: ID del proyecto de auditoría.
-            modelo: Modelo LLM a utilizar.
-
-        Returns:
-            Diccionario con la respuesta, fuentes y metadatos.
-        """
+        """Procesa un mensaje y retorna la respuesta completa."""
         inicio: float = time.time()
         interaccion_id: str = str(uuid.uuid4())
 
@@ -88,39 +50,19 @@ class ChatService:
             interaccion_id[:8], usuario_id, session_id[:8], fase_actual,
         )
 
-        # Recuperar historial de la sesión
-        mensajes_previos: list = []
-        if self._memoria:
-            mensajes_previos = await self._memoria.obtener_mensajes(session_id)
-
-        # Recuperar contexto RAG
-        contexto_rag: list[str] = []
-        if self._retriever:
-            try:
-                from backend.app.rag.retriever import buscar_similares
-                resultados = await buscar_similares(
-                    mensaje, coleccion=f"proyecto_{proyecto_auditoria_id}" if proyecto_auditoria_id else "general",
-                    top_k=5,
-                )
-                contexto_rag = [r.contenido for r in resultados]
-            except Exception:
-                logger.exception("Error al recuperar contexto RAG.")
-
         # Construir estado
-        mensajes_completos: list = mensajes_previos + [HumanMessage(content=mensaje)]
-
         state: AuditState = {
-            "messages": mensajes_completos,
+            "messages": [HumanMessage(content=mensaje)],
             "usuario_id": usuario_id,
             "rol": rol,
             "direccion": direccion,
             "fase_actual": fase_actual,
             "proyecto_auditoria_id": proyecto_auditoria_id,
-            "contexto_rag": contexto_rag,
+            "contexto_rag": [],
             "herramientas_disponibles": [],
             "respuesta_final": "",
             "fuentes": [],
-            "modelo": modelo,
+            "modelo": "",
             "session_id": session_id,
         }
 
@@ -128,42 +70,16 @@ class ChatService:
         resultado: AuditState = ejecutar_grafo(state)
 
         duracion: float = time.time() - inicio
-
-        # Guardar en memoria
-        if self._memoria:
-            await self._memoria.guardar_mensaje(
-                session_id=session_id,
-                rol="user",
-                contenido=mensaje,
-            )
-            await self._memoria.guardar_mensaje(
-                session_id=session_id,
-                rol="assistant",
-                contenido=resultado.get("respuesta_final", ""),
-            )
-
-        # Registrar trazabilidad
-        if self._trazabilidad:
-            await self._trazabilidad.registrar_interaccion(
-                interaccion_id=interaccion_id,
-                usuario_id=usuario_id,
-                session_id=session_id,
-                mensaje_usuario=mensaje,
-                respuesta=resultado.get("respuesta_final", ""),
-                fuentes=resultado.get("fuentes", []),
-                modelo=modelo,
-                fase=fase_actual,
-                duracion_segundos=duracion,
-                tokens_entrada=0,  # TODO: obtener del callback
-                tokens_salida=0,
-            )
+        info_modelo = info_modelo_activo()
 
         respuesta: dict[str, Any] = {
             "interaccion_id": interaccion_id,
+            "conversacion_id": conversacion_id or session_id,
             "respuesta": resultado.get("respuesta_final", ""),
             "fuentes": resultado.get("fuentes", []),
             "fase_actual": fase_actual,
-            "modelo": modelo,
+            "modelo": info_modelo.get("modelo", ""),
+            "nombre_modelo": info_modelo.get("nombre_display", ""),
             "duracion_segundos": round(duracion, 3),
         }
 
@@ -179,47 +95,46 @@ class ChatService:
         mensaje: str,
         usuario_id: str,
         session_id: str,
+        conversacion_id: Optional[str] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
-        """Transmite la respuesta como Server-Sent Events (SSE).
+        """Transmite la respuesta como SSE.
 
-        Args:
-            mensaje: Texto del mensaje del usuario.
-            usuario_id: Identificador del usuario.
-            session_id: Identificador de la sesión.
-            **kwargs: Parámetros adicionales para procesar_mensaje.
-
-        Yields:
-            Líneas formateadas como SSE (data: ...).
+        Ejecuta el grafo completo y luego transmite la respuesta
+        token por token para simular streaming real.
         """
         try:
             # Evento de inicio
-            yield f"data: {json.dumps({'tipo': 'inicio', 'session_id': session_id})}\n\n"
+            yield f"data: {json.dumps({'tipo': 'inicio', 'conversacion_id': conversacion_id or session_id})}\n\n"
 
             resultado: dict[str, Any] = await self.procesar_mensaje(
                 mensaje=mensaje,
                 usuario_id=usuario_id,
                 session_id=session_id,
+                conversacion_id=conversacion_id,
                 **kwargs,
             )
 
-            # Simular streaming dividiendo la respuesta en chunks
+            # Transmitir la respuesta en chunks
             respuesta_completa: str = resultado.get("respuesta", "")
-            chunk_size: int = 50  # caracteres por chunk
+            palabras = respuesta_completa.split(" ")
 
-            for i in range(0, len(respuesta_completa), chunk_size):
-                chunk: str = respuesta_completa[i:i + chunk_size]
+            for i, palabra in enumerate(palabras):
+                token = palabra + (" " if i < len(palabras) - 1 else "")
                 evento: dict[str, Any] = {
-                    "tipo": "chunk",
-                    "contenido": chunk,
+                    "tipo": "token",
+                    "contenido": token,
                 }
                 yield f"data: {json.dumps(evento, ensure_ascii=False)}\n\n"
 
-            # Evento de finalización
+            # Evento de finalizacion
             evento_fin: dict[str, Any] = {
                 "tipo": "fin",
                 "interaccion_id": resultado.get("interaccion_id", ""),
+                "conversacion_id": resultado.get("conversacion_id", ""),
                 "fuentes": resultado.get("fuentes", []),
+                "modelo": resultado.get("modelo", ""),
+                "nombre_modelo": resultado.get("nombre_modelo", ""),
                 "duracion_segundos": resultado.get("duracion_segundos", 0),
             }
             yield f"data: {json.dumps(evento_fin, ensure_ascii=False)}\n\n"
@@ -228,6 +143,18 @@ class ChatService:
             logger.exception("Error en streaming SSE.")
             evento_error: dict[str, str] = {
                 "tipo": "error",
-                "mensaje": "Error interno al procesar la consulta.",
+                "mensaje": f"Error interno al procesar la consulta: {str(e)}",
             }
             yield f"data: {json.dumps(evento_error)}\n\n"
+
+
+# Singleton
+_chat_service: ChatService | None = None
+
+
+def obtener_chat_service() -> ChatService:
+    """Retorna singleton del ChatService."""
+    global _chat_service
+    if _chat_service is None:
+        _chat_service = ChatService()
+    return _chat_service

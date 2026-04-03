@@ -20,13 +20,9 @@ logger = logging.getLogger("cecilia.tools.buscar_normativa")
 
 # Colecciones normativas disponibles en la base vectorial
 COLECCIONES_NORMATIVAS: list[str] = [
-    "leyes",
-    "decretos",
-    "resoluciones_organicas",
-    "jurisprudencia",
-    "guias_auditoria",
-    "conceptos_cgr",
-    "normativa_contable",
+    "normativo",
+    "jurisprudencial",
+    "institucional",
 ]
 
 
@@ -53,8 +49,8 @@ def buscar_normativa(
     Returns:
         Texto con los fragmentos normativos relevantes y sus fuentes.
     """
-    from backend.app.rag.retriever import buscar_similares, ResultadoBusqueda
-    from backend.app.rag.reranker import reordenar_resultados
+    from app.rag.retriever import buscar_similares, ResultadoBusqueda
+    from app.rag.reranker import reordenar_resultados
     import asyncio
 
     logger.info(
@@ -62,7 +58,7 @@ def buscar_normativa(
         consulta[:100], tipo_norma, top_k,
     )
 
-    coleccion: str = tipo_norma if tipo_norma in COLECCIONES_NORMATIVAS else "normativa"
+    coleccion: str = tipo_norma if tipo_norma in COLECCIONES_NORMATIVAS else "normativo"
 
     try:
         # Ejecutar búsqueda asíncrona

@@ -79,6 +79,10 @@ class Configuracion(BaseSettings):
         default=120,
         description="Timeout en segundos para llamadas al LLM",
     )
+    LLM_BACKUP_BASE_URL: str = ""
+    LLM_BACKUP_MODEL: str = ""
+    LLM_BACKUP_API_KEY: str = ""
+    LLM_REINTENTOS: int = 2
 
     # ── Embeddings ────────────────────────────────────────────────────────
     EMBEDDINGS_BASE_URL: str = Field(
