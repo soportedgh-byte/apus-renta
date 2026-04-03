@@ -13,22 +13,23 @@ export type Direccion = 'DES' | 'DVF';
 
 /** Informacion de usuario autenticado */
 export interface Usuario {
-  id: string;
+  id: number;
+  usuario: string;
   nombre_completo: string;
-  correo: string;
-  rol: RolUsuario;
+  email: string;
+  rol: string;
   direccion: Direccion | null;
-  puede_ver: Direccion[];
-  avatar_url?: string;
-  activo: boolean;
-  fecha_creacion: string;
-  ultimo_acceso?: string;
+  modulos: string[];
+  permisos: string[];
+  acciones_rapidas: string[];
 }
 
 /** Respuesta del endpoint de autenticacion */
 export interface RespuestaAuth {
-  access_token: string;
-  token_type: string;
+  token_acceso: string;
+  token_refresco: string;
+  tipo_token: string;
+  expira_en_minutos: number;
   usuario: Usuario;
 }
 

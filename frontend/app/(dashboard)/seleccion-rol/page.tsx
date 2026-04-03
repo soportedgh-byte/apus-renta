@@ -13,13 +13,13 @@ import type { Direccion } from '@/lib/types';
  */
 export default function PaginaSeleccionRol() {
   const router = useRouter();
-  const [usuario, setUsuario] = useState<{ nombre_completo: string; puede_ver: Direccion[] } | null>(null);
+  const [usuario, setUsuario] = useState<{ nombre_completo: string } | null>(null);
   const [seleccionando, setSeleccionando] = useState<Direccion | null>(null);
 
   useEffect(() => {
     const u = obtenerUsuario();
     if (u) {
-      setUsuario({ nombre_completo: u.nombre_completo, puede_ver: u.puede_ver });
+      setUsuario({ nombre_completo: u.nombre_completo });
     }
   }, []);
 

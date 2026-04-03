@@ -17,7 +17,7 @@ export async function iniciarSesion(credenciales: CredencialesLogin): Promise<Us
   const respuesta = await apiCliente.post<RespuestaAuth>('/auth/login', credenciales);
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CLAVE_TOKEN, respuesta.access_token);
+    localStorage.setItem(CLAVE_TOKEN, respuesta.token_acceso);
     localStorage.setItem(CLAVE_USUARIO, JSON.stringify(respuesta.usuario));
   }
 
@@ -84,12 +84,19 @@ export function obtenerDireccionActiva(): Direccion | null {
 }
 
 /**
- * Verifica si el usuario puede ver una direccion especifica
+ * Verifica si el usuario puede ver una direccion especifica.
+ * Se deriva del rol: admin_tic y observatorio ven ambas; los demas solo su direccion.
  */
 export function puedeVerDireccion(direccion: Direccion): boolean {
   const usuario = obtenerUsuario();
   if (!usuario) return false;
-  return usuario.puede_ver.includes(direccion);
+
+  const rolesAccesoDual = ['admin_tic', 'observatorio'];
+  if (rolesAccesoDual.includes(usuario.rol)) return true;
+
+  if (direccion === 'DES') return usuario.rol.includes('_des');
+  if (direccion === 'DVF') return usuario.rol.includes('_dvf');
+  return false;
 }
 
 /**
@@ -107,7 +114,7 @@ export function tieneRol(rol: string): boolean {
 export function esAdmin(): boolean {
   const usuario = obtenerUsuario();
   if (!usuario) return false;
-  return usuario.rol === 'admin' || usuario.rol === 'superadmin';
+  return usuario.rol === 'admin_tic';
 }
 
 /**
