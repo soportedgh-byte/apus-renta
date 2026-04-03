@@ -86,16 +86,16 @@ class Configuracion(BaseSettings):
         description="URL base del proveedor de embeddings",
     )
     EMBEDDINGS_MODEL: str = Field(
-        default="text-embedding-3-large",
-        description="Modelo de embeddings para RAG",
+        default="nomic-embed-text",
+        description="Modelo de embeddings para RAG (nomic-embed-text, text-embedding-3-small, etc.)",
     )
     EMBEDDINGS_API_KEY: str = Field(
-        default="",
+        default="ollama",
         description="Clave API del proveedor de embeddings",
     )
     EMBEDDINGS_DIMENSIONES: int = Field(
-        default=3072,
-        description="Dimensiones del vector de embeddings",
+        default=768,
+        description="Dimensiones del vector de embeddings (768 para nomic-embed-text, 1536 para text-embedding-3-small, 3072 para text-embedding-3-large)",
     )
 
     # ── JWT y Autenticacion ───────────────────────────────────────────────

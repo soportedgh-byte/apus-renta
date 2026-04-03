@@ -1,24 +1,28 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: __init__.py
-Propósito: Paquete RAG (Retrieval-Augmented Generation)
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Paquete RAG (Retrieval-Augmented Generation)
+Sprint: 1
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-from backend.app.rag.ingesta import ingestar_documento
-from backend.app.rag.chunking import dividir_en_fragmentos
-from backend.app.rag.embeddings import generar_embeddings
-from backend.app.rag.retriever import buscar_similares
-from backend.app.rag.reranker import reordenar_resultados
+from app.rag.ingesta import ingestar_documento
+from app.rag.chunking import dividir_en_fragmentos, detectar_modo_por_coleccion
+from app.rag.embeddings import generar_embeddings, generar_embedding_consulta, obtener_dimension
+from app.rag.retriever import buscar_similares, ResultadoBusqueda
+from app.rag.reranker import reordenar_resultados
 
 __all__: list[str] = [
     "ingestar_documento",
     "dividir_en_fragmentos",
+    "detectar_modo_por_coleccion",
     "generar_embeddings",
+    "generar_embedding_consulta",
+    "obtener_dimension",
     "buscar_similares",
+    "ResultadoBusqueda",
     "reordenar_resultados",
 ]

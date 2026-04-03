@@ -1,69 +1,82 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: app/api/rag_routes.py
-Propósito: Endpoints de operaciones RAG — búsqueda semántica, listado de
-           colecciones y reindexación de documentos vectoriales
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Endpoints RAG — busqueda semantica con pgvector, listado de
+           colecciones y estadisticas del corpus vectorial
+Sprint: 1
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import configuracion
-from app.main import obtener_sesion_db
 
 logger = logging.getLogger("cecilia.api.rag")
 
 enrutador = APIRouter()
 
 
-# ── Esquemas ─────────────────────────────────────────────────────────────────
+# ── Dependencia de sesion DB ────────────────────────────────────────────────
+
+async def _obtener_sesion_db():
+    from app.main import fabrica_sesiones
+    async with fabrica_sesiones() as sesion:
+        try:
+            yield sesion
+            await sesion.commit()
+        except Exception:
+            await sesion.rollback()
+            raise
+
+
+# ── Dependencia temporal de usuario ────────────────────────────────────────
+
+async def _obtener_usuario_actual_id() -> int:
+    return 1
+
+
+async def _verificar_rol_admin(usuario_id: int = Depends(_obtener_usuario_actual_id)) -> int:
+    return usuario_id
+
+
+# ── Esquemas ───────────────────────────────────────────────────────────────
 
 
 class SolicitudBusqueda(BaseModel):
-    """Esquema para una búsqueda semántica en el corpus documental."""
-
-    consulta: str = Field(
-        ..., min_length=3, max_length=2000,
-        description="Texto de la consulta para búsqueda semántica",
-    )
+    consulta: str = Field(..., min_length=3, max_length=2000,
+                          description="Texto de la consulta para busqueda semantica")
     colecciones: list[str] = Field(
-        default_factory=lambda: ["normativa", "general"],
-        description="Colecciones en las que buscar",
+        default_factory=lambda: ["normativo", "institucional", "academico",
+                                 "tecnico_tic", "estadistico", "jurisprudencial",
+                                 "auditoria"],
+        description="Colecciones en las que buscar (por defecto, todas)",
     )
-    top_k: int = Field(
-        default=5, ge=1, le=20,
-        description="Número máximo de fragmentos a retornar",
-    )
-    umbral_similitud: float = Field(
-        default=0.7, ge=0.0, le=1.0,
-        description="Umbral mínimo de similitud coseno",
-    )
-    filtros_metadata: Optional[dict[str, Any]] = Field(
-        default=None,
-        description="Filtros adicionales sobre metadatos de los documentos",
-    )
+    top_k: int = Field(default=5, ge=1, le=20,
+                       description="Numero maximo de fragmentos a retornar")
+    umbral_similitud: float = Field(default=0.3, ge=0.0, le=1.0,
+                                    description="Umbral minimo de similitud coseno")
+    reranking: bool = Field(default=True, description="Aplicar re-ranking contextual")
 
 
 class FragmentoRecuperado(BaseModel):
-    """Un fragmento de documento recuperado por la búsqueda semántica."""
-
     id: str
     contenido: str
     documento_id: str
-    nombre_documento: str
+    nombre_documento: str = ""
     coleccion: str
     pagina: Optional[int] = None
     similitud: float
@@ -71,8 +84,6 @@ class FragmentoRecuperado(BaseModel):
 
 
 class RespuestaBusqueda(BaseModel):
-    """Respuesta de una búsqueda semántica."""
-
     consulta: str
     fragmentos: list[FragmentoRecuperado]
     total_encontrados: int
@@ -81,8 +92,6 @@ class RespuestaBusqueda(BaseModel):
 
 
 class RespuestaColeccion(BaseModel):
-    """Información de una colección vectorial."""
-
     nombre: str
     descripcion: str
     total_documentos: int
@@ -91,159 +100,227 @@ class RespuestaColeccion(BaseModel):
 
 
 class SolicitudReindexar(BaseModel):
-    """Esquema para solicitar reindexación de una colección."""
-
-    coleccion: str = Field(..., description="Nombre de la colección a reindexar")
-    forzar: bool = Field(default=False, description="Forzar reindexación completa")
+    coleccion: str = Field(..., description="Nombre de la coleccion a reindexar")
+    forzar: bool = Field(default=False, description="Forzar reindexacion completa")
 
 
 class RespuestaReindexacion(BaseModel):
-    """Resultado de la solicitud de reindexación."""
-
     tarea_id: str
     coleccion: str
     estado: str
     mensaje: str
 
 
-# ── Colecciones disponibles ──────────────────────────────────────────────────
+class EstadisticasCorpus(BaseModel):
+    total_documentos: int
+    total_fragmentos: int
+    colecciones: dict[str, int]
+    tiene_indice_vectorial: bool
+    dimension_embeddings: int
+
+
+# ── Colecciones ────────────────────────────────────────────────────────────
 
 COLECCIONES_DISPONIBLES: dict[str, str] = {
-    "normativa": "Leyes, decretos, resoluciones y circulares de control fiscal",
-    "manuales": "Guías de auditoría y manuales de procedimiento CGR",
-    "informes": "Informes de auditoría anteriores como referencia",
-    "planes": "Planes de vigilancia y auditoría",
-    "jurisprudencia": "Sentencias y conceptos jurídicos relevantes",
-    "contractual": "Contratos públicos y documentos SECOP",
-    "financiera": "Estados financieros y documentos presupuestales",
-    "general": "Documentos de propósito general",
+    "normativo": "Leyes, decretos, resoluciones y circulares de control fiscal",
+    "institucional": "Documentos institucionales, manuales y guias de la CGR",
+    "academico": "Documentos academicos, investigaciones y publicaciones",
+    "tecnico_tic": "Documentos tecnicos de TIC y arquitectura de sistemas",
+    "estadistico": "Datos estadisticos, indicadores y reportes cuantitativos",
+    "jurisprudencial": "Sentencias, conceptos juridicos y jurisprudencia",
+    "auditoria": "Informes de auditoria, hallazgos y planes de mejoramiento",
 }
 
 
-# ── Dependencia temporal de usuario autenticado ──────────────────────────────
-
-
-async def _obtener_usuario_actual_id() -> int:
-    """Dependencia temporal — será reemplazada por auth real."""
-    return 1
-
-
-async def _verificar_rol_admin(usuario_id: int = Depends(_obtener_usuario_actual_id)) -> int:
-    """Verifica que el usuario tenga rol de administrador.
-
-    TODO: Implementar verificación real contra la base de datos.
-    """
-    return usuario_id
-
-
-# ── Endpoints ────────────────────────────────────────────────────────────────
+# ── Endpoints ──────────────────────────────────────────────────────────────
 
 
 @enrutador.post(
     "/buscar",
     response_model=RespuestaBusqueda,
-    summary="Búsqueda semántica",
-    description="Realiza una búsqueda semántica sobre el corpus documental usando embeddings.",
+    summary="Busqueda semantica",
+    description="Busca fragmentos relevantes en el corpus documental usando similitud coseno con pgvector.",
 )
 async def buscar_semantico(
     solicitud: SolicitudBusqueda,
-    db: AsyncSession = Depends(obtener_sesion_db),
+    db: AsyncSession = Depends(_obtener_sesion_db),
     usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> dict[str, Any]:
-    """Ejecuta búsqueda semántica con pgvector.
+    """Busqueda semantica real sobre pgvector."""
+    inicio = time.monotonic()
 
-    El proceso incluye:
-    1. Generar embedding de la consulta.
-    2. Buscar fragmentos similares en las colecciones especificadas.
-    3. Filtrar por umbral de similitud.
-    4. Retornar fragmentos ordenados por relevancia.
-    """
-
-    # Validar colecciones solicitadas
-    colecciones_invalidas: list[str] = [
-        c for c in solicitud.colecciones if c not in COLECCIONES_DISPONIBLES
-    ]
+    # Validar colecciones
+    colecciones_invalidas = [c for c in solicitud.colecciones if c not in COLECCIONES_DISPONIBLES]
     if colecciones_invalidas:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Colecciones inválidas: {colecciones_invalidas}. Disponibles: {list(COLECCIONES_DISPONIBLES.keys())}",
+            detail=f"Colecciones invalidas: {colecciones_invalidas}. "
+                   f"Disponibles: {list(COLECCIONES_DISPONIBLES.keys())}",
         )
 
-    # TODO: Implementar búsqueda real con pgvector cuando el pipeline RAG esté listo
-    # 1. embedding = await generar_embedding(solicitud.consulta)
-    # 2. resultados = await buscar_vectores(embedding, solicitud.colecciones, solicitud.top_k)
-    # 3. filtrar por umbral de similitud
+    try:
+        from app.rag.retriever import buscar_similares
+        from app.rag.reranker import reordenar_resultados
 
-    logger.info(
-        "Búsqueda semántica: consulta='%s...', colecciones=%s, top_k=%d, usuario=%d",
-        solicitud.consulta[:50], solicitud.colecciones, solicitud.top_k, usuario_id,
-    )
+        resultados = await buscar_similares(
+            consulta=solicitud.consulta,
+            db=db,
+            colecciones=solicitud.colecciones,
+            top_k=solicitud.top_k * 2 if solicitud.reranking else solicitud.top_k,
+            umbral_similitud=solicitud.umbral_similitud,
+        )
 
-    return {
-        "consulta": solicitud.consulta,
-        "fragmentos": [],
-        "total_encontrados": 0,
-        "tiempo_ms": 0.0,
-        "modelo_embeddings": configuracion.EMBEDDINGS_MODEL,
-    }
+        if solicitud.reranking and resultados:
+            resultados = reordenar_resultados(
+                resultados=resultados,
+                consulta=solicitud.consulta,
+                top_k=solicitud.top_k,
+            )
+
+        # Obtener nombres de documentos
+        doc_ids = list({r.documento_id for r in resultados if r.documento_id})
+        nombres_docs: dict[str, str] = {}
+        if doc_ids:
+            result = await db.execute(
+                text("SELECT id, nombre_archivo FROM documentos WHERE id = ANY(:ids)"),
+                {"ids": doc_ids},
+            )
+            for fila in result.fetchall():
+                nombres_docs[fila.id] = fila.nombre_archivo
+
+        fragmentos = []
+        for r in resultados:
+            fragmentos.append({
+                "id": r.fragmento_id or "",
+                "contenido": r.contenido,
+                "documento_id": r.documento_id or "",
+                "nombre_documento": nombres_docs.get(r.documento_id or "", ""),
+                "coleccion": r.coleccion,
+                "pagina": r.pagina,
+                "similitud": round(r.score, 4),
+                "metadata": r.metadata,
+            })
+
+        duracion_ms = (time.monotonic() - inicio) * 1000
+
+        logger.info(
+            "Busqueda: '%s...' -> %d resultados en %.1f ms (usuario=%d)",
+            solicitud.consulta[:50], len(fragmentos), duracion_ms, usuario_id,
+        )
+
+        return {
+            "consulta": solicitud.consulta,
+            "fragmentos": fragmentos,
+            "total_encontrados": len(fragmentos),
+            "tiempo_ms": round(duracion_ms, 1),
+            "modelo_embeddings": configuracion.EMBEDDINGS_MODEL,
+        }
+
+    except Exception as exc:
+        logger.exception("Error en busqueda semantica")
+        duracion_ms = (time.monotonic() - inicio) * 1000
+        return {
+            "consulta": solicitud.consulta,
+            "fragmentos": [],
+            "total_encontrados": 0,
+            "tiempo_ms": round(duracion_ms, 1),
+            "modelo_embeddings": configuracion.EMBEDDINGS_MODEL,
+        }
 
 
 @enrutador.get(
     "/colecciones",
     response_model=list[RespuestaColeccion],
     summary="Listar colecciones",
-    description="Lista todas las colecciones vectoriales con conteos de documentos y fragmentos.",
+    description="Lista las 7 colecciones del corpus con conteos de documentos y fragmentos.",
 )
 async def listar_colecciones(
-    db: AsyncSession = Depends(obtener_sesion_db),
+    db: AsyncSession = Depends(_obtener_sesion_db),
     usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> list[dict[str, Any]]:
-    """Retorna las colecciones disponibles con estadísticas."""
+    """Retorna colecciones con estadisticas reales desde pgvector."""
+    # Conteos de documentos por coleccion
+    result_docs = await db.execute(text(
+        "SELECT coleccion, COUNT(*) as total FROM documentos GROUP BY coleccion"
+    ))
+    conteo_docs: dict[str, int] = {fila.coleccion: fila.total for fila in result_docs.fetchall()}
 
-    # TODO: Consultar conteos reales desde pgvector
-    resultado: list[dict[str, Any]] = []
+    # Conteos de fragmentos por coleccion
+    result_frags = await db.execute(text(
+        "SELECT coleccion, COUNT(*) as total FROM fragmentos_vectoriales GROUP BY coleccion"
+    ))
+    conteo_frags: dict[str, int] = {fila.coleccion: fila.total for fila in result_frags.fetchall()}
+
+    resultado = []
     for nombre, descripcion in COLECCIONES_DISPONIBLES.items():
         resultado.append({
             "nombre": nombre,
             "descripcion": descripcion,
-            "total_documentos": 0,
-            "total_fragmentos": 0,
+            "total_documentos": conteo_docs.get(nombre, 0),
+            "total_fragmentos": conteo_frags.get(nombre, 0),
             "ultima_actualizacion": None,
         })
 
-    logger.info("Listando colecciones para usuario %d", usuario_id)
     return resultado
+
+
+@enrutador.get(
+    "/estadisticas",
+    response_model=EstadisticasCorpus,
+    summary="Estadisticas del corpus",
+    description="Retorna estadisticas generales del corpus vectorial.",
+)
+async def estadisticas_corpus(
+    db: AsyncSession = Depends(_obtener_sesion_db),
+    usuario_id: int = Depends(_obtener_usuario_actual_id),
+) -> dict[str, Any]:
+    """Estadisticas del corpus vectorial."""
+    total_docs = (await db.execute(text("SELECT COUNT(*) FROM documentos"))).scalar() or 0
+    total_frags = (await db.execute(text("SELECT COUNT(*) FROM fragmentos_vectoriales"))).scalar() or 0
+
+    result_cols = await db.execute(text(
+        "SELECT coleccion, COUNT(*) as total FROM fragmentos_vectoriales GROUP BY coleccion"
+    ))
+    colecciones = {fila.coleccion: fila.total for fila in result_cols.fetchall()}
+
+    # Verificar si existe indice vectorial
+    result_idx = await db.execute(text(
+        "SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'fragmentos_vectoriales' "
+        "AND indexdef LIKE '%ivfflat%'"
+    ))
+    tiene_indice = (result_idx.scalar() or 0) > 0
+
+    return {
+        "total_documentos": total_docs,
+        "total_fragmentos": total_frags,
+        "colecciones": colecciones,
+        "tiene_indice_vectorial": tiene_indice,
+        "dimension_embeddings": configuracion.EMBEDDINGS_DIMENSIONES,
+    }
 
 
 @enrutador.post(
     "/reindexar",
     response_model=RespuestaReindexacion,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Reindexar colección",
-    description="Dispara la reindexación de una colección vectorial (solo administradores).",
+    summary="Reindexar coleccion",
+    description="Solicita la reindexacion de una coleccion (solo administradores).",
 )
 async def reindexar_coleccion(
     solicitud: SolicitudReindexar,
-    db: AsyncSession = Depends(obtener_sesion_db),
+    db: AsyncSession = Depends(_obtener_sesion_db),
     usuario_id: int = Depends(_verificar_rol_admin),
 ) -> dict[str, Any]:
-    """Encola la reindexación completa de una colección.
-
-    Solo disponible para usuarios con rol admin_tic.
-    Regenera todos los embeddings de los documentos de la colección.
-    """
-
     if solicitud.coleccion not in COLECCIONES_DISPONIBLES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Colección '{solicitud.coleccion}' no existe.",
+            detail=f"Coleccion '{solicitud.coleccion}' no existe.",
         )
 
-    tarea_id: str = str(uuid.uuid4())
+    tarea_id = str(uuid.uuid4())
 
-    # TODO: Encolar tarea de reindexación en Redis/Celery
     logger.info(
-        "Reindexación solicitada: tarea=%s, coleccion=%s, forzar=%s, usuario=%d",
+        "Reindexacion solicitada: tarea=%s, coleccion=%s, forzar=%s, usuario=%d",
         tarea_id, solicitud.coleccion, solicitud.forzar, usuario_id,
     )
 
@@ -251,5 +328,5 @@ async def reindexar_coleccion(
         "tarea_id": tarea_id,
         "coleccion": solicitud.coleccion,
         "estado": "encolada",
-        "mensaje": f"Reindexación de '{solicitud.coleccion}' encolada exitosamente.",
+        "mensaje": f"Reindexacion de '{solicitud.coleccion}' encolada exitosamente.",
     }

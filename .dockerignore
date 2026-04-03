@@ -1,0 +1,29 @@
+# Corpus documental (se monta como volumen, no se incluye en la imagen)
+corpus/
+
+# Git
+.git
+.gitignore
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Claude
+.claude/
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/.next/
+
+# Python
+backend/__pycache__/
+backend/.pytest_cache/
+backend/*.pyc
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

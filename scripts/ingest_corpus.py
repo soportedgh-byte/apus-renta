@@ -1,47 +1,61 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: ingest_corpus.py
-Propósito: Ingestión del corpus documental — escaneo, extracción de texto, generación de embeddings y almacenamiento en pgvector
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Ingestion del corpus documental — escaneo de 7 colecciones,
+           extraccion de texto, chunking (con modo juridico), generacion
+           de embeddings y almacenamiento en pgvector (fragmentos_vectoriales)
+Sprint: 1
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
+
+Uso dentro de Docker:
+    docker compose exec backend python scripts/ingest_corpus.py
+
+Uso local (requiere DATABASE_URL_SYNC configurado):
+    python scripts/ingest_corpus.py
 """
 
+import hashlib
 import os
 import sys
 import time
 import logging
+import uuid
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Iterator
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
-# ---------------------------------------------------------------------------
-# Configuración
-# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger("ingest_corpus")
 
-DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
-OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
-EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
-CHUNK_SIZE: int = int(os.environ.get("CHUNK_SIZE", "1024"))
-CHUNK_OVERLAP: int = int(os.environ.get("CHUNK_OVERLAP", "128"))
-CORPUS_DIR: Path = Path(os.environ.get("CORPUS_DIR", "corpus"))
-
-EXTENSIONES_SOPORTADAS: set[str] = {".pdf", ".docx", ".xlsx"}
-
 # ---------------------------------------------------------------------------
-# Colecciones del corpus
+# Configuracion
 # ---------------------------------------------------------------------------
-COLECCIONES = [
+
+# URL de la base de datos (sincrona para este script)
+DATABASE_URL: str = os.environ.get("DATABASE_URL_SYNC", "")
+if not DATABASE_URL:
+    # Intentar convertir la URL asincrona
+    _url = os.environ.get("DATABASE_URL", "")
+    if _url:
+        DATABASE_URL = _url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+        if DATABASE_URL.startswith("postgresql://"):
+            DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+CORPUS_DIR: Path = Path(os.environ.get("CORPUS_DIR", "/datos/corpus"))
+CHUNK_SIZE: int = int(os.environ.get("RAG_CHUNK_SIZE", "1000"))
+CHUNK_OVERLAP: int = int(os.environ.get("RAG_CHUNK_OVERLAP", "200"))
+EMBEDDING_BATCH_SIZE: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))
+
+EXTENSIONES_SOPORTADAS: set[str] = {".pdf", ".docx", ".xlsx", ".xls"}
+
+# Las 7 colecciones del corpus de la CGR
+COLECCIONES: list[str] = [
     "normativo",
     "institucional",
     "academico",
@@ -51,25 +65,24 @@ COLECCIONES = [
     "auditoria",
 ]
 
+# Modo de chunking segun coleccion
+MODO_CHUNKING: dict[str, str] = {
+    "normativo": "juridico",
+    "jurisprudencial": "juridico",
+    "institucional": "institucional",
+    "auditoria": "institucional",
+    "academico": "general",
+    "tecnico_tic": "general",
+    "estadistico": "general",
+}
+
 
 # ---------------------------------------------------------------------------
-# Estructuras de datos
+# Estadisticas
 # ---------------------------------------------------------------------------
-@dataclass
-class Fragmento:
-    """Representa un fragmento (chunk) de texto extraído de un documento."""
-
-    coleccion: str
-    archivo: str
-    contenido: str
-    pagina: int | None = None
-    metadata: dict = field(default_factory=dict)
-
 
 @dataclass
 class EstadisticasIngestion:
-    """Acumula estadísticas del proceso de ingestión."""
-
     archivos_procesados: int = 0
     archivos_omitidos: int = 0
     fragmentos_generados: int = 0
@@ -81,33 +94,31 @@ class EstadisticasIngestion:
         duracion = time.time() - self.tiempo_inicio
         return (
             "\n" + "=" * 60 + "\n"
-            "RESUMEN DE INGESTIÓN DEL CORPUS\n"
-            f"  Archivos procesados  : {self.archivos_procesados}\n"
-            f"  Archivos omitidos    : {self.archivos_omitidos}\n"
-            f"  Fragmentos generados : {self.fragmentos_generados}\n"
+            "  RESUMEN DE INGESTION DEL CORPUS\n"
+            + "=" * 60 + "\n"
+            f"  Archivos procesados   : {self.archivos_procesados}\n"
+            f"  Archivos omitidos     : {self.archivos_omitidos}\n"
+            f"  Fragmentos generados  : {self.fragmentos_generados}\n"
             f"  Embeddings almacenados: {self.embeddings_almacenados}\n"
-            f"  Errores              : {self.errores}\n"
-            f"  Duración             : {duracion:.1f} s\n"
+            f"  Errores               : {self.errores}\n"
+            f"  Duracion              : {duracion:.1f} s\n"
             + "=" * 60
         )
 
 
 # ---------------------------------------------------------------------------
-# Extracción de texto según formato
+# Extraccion de texto
 # ---------------------------------------------------------------------------
 
-def extraer_texto_pdf(ruta: Path) -> list[tuple[int, str]]:
-    """Extrae texto página a página de un PDF.
-
-    Retorna lista de tuplas (número_página, texto).
-    """
+def extraer_texto_pdf(ruta: Path) -> list[tuple[int | None, str]]:
+    """Extrae texto pagina a pagina de un PDF."""
     try:
-        import fitz  # PyMuPDF
+        import fitz
     except ImportError:
-        logger.error("PyMuPDF (fitz) no está instalado. Ejecute: pip install pymupdf")
+        logger.error("PyMuPDF no instalado. pip install pymupdf")
         return []
 
-    paginas: list[tuple[int, str]] = []
+    paginas: list[tuple[int | None, str]] = []
     with fitz.open(str(ruta)) as doc:
         for i, pagina in enumerate(doc, start=1):
             texto = pagina.get_text("text")
@@ -116,25 +127,34 @@ def extraer_texto_pdf(ruta: Path) -> list[tuple[int, str]]:
     return paginas
 
 
-def extraer_texto_docx(ruta: Path) -> list[tuple[None, str]]:
-    """Extrae texto completo de un archivo DOCX."""
+def extraer_texto_docx(ruta: Path) -> list[tuple[int | None, str]]:
+    """Extrae texto de un archivo DOCX."""
     try:
         from docx import Document
     except ImportError:
-        logger.error("python-docx no está instalado. Ejecute: pip install python-docx")
+        logger.error("python-docx no instalado. pip install python-docx")
         return []
 
     doc = Document(str(ruta))
-    texto = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    parrafos = []
+    for p in doc.paragraphs:
+        if p.text.strip():
+            parrafos.append(p.text)
+    for tabla in doc.tables:
+        for fila in tabla.rows:
+            celdas = [c.text.strip() for c in fila.cells if c.text.strip()]
+            if celdas:
+                parrafos.append(" | ".join(celdas))
+    texto = "\n\n".join(parrafos)
     return [(None, texto)] if texto else []
 
 
-def extraer_texto_xlsx(ruta: Path) -> list[tuple[None, str]]:
-    """Extrae contenido textual de un archivo XLSX (todas las hojas)."""
+def extraer_texto_xlsx(ruta: Path) -> list[tuple[int | None, str]]:
+    """Extrae contenido de un XLSX."""
     try:
         import openpyxl
     except ImportError:
-        logger.error("openpyxl no está instalado. Ejecute: pip install openpyxl")
+        logger.error("openpyxl no instalado. pip install openpyxl")
         return []
 
     wb = openpyxl.load_workbook(str(ruta), read_only=True, data_only=True)
@@ -157,96 +177,183 @@ EXTRACTORES = {
     ".pdf": extraer_texto_pdf,
     ".docx": extraer_texto_docx,
     ".xlsx": extraer_texto_xlsx,
+    ".xls": extraer_texto_xlsx,
 }
 
 
 # ---------------------------------------------------------------------------
-# Fragmentación (chunking)
+# Fragmentacion con modo segun coleccion
 # ---------------------------------------------------------------------------
 
 def fragmentar_texto(
     texto: str,
+    coleccion: str,
     tamano: int = CHUNK_SIZE,
     solapamiento: int = CHUNK_OVERLAP,
 ) -> list[str]:
-    """Divide un texto largo en fragmentos con solapamiento."""
+    """Divide texto en fragmentos. Usa modo juridico para normativo/jurisprudencial."""
+    # Importar chunking del modulo RAG si esta disponible
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+        from app.rag.chunking import dividir_en_fragmentos, detectar_modo_por_coleccion
+
+        modo = detectar_modo_por_coleccion(coleccion)
+        fragmentos = dividir_en_fragmentos(texto, tamano=tamano, solapamiento=solapamiento, modo=modo)
+        return [f.contenido for f in fragmentos]
+    except ImportError:
+        pass
+
+    # Fallback simple si no se puede importar el modulo
     if len(texto) <= tamano:
-        return [texto]
+        return [texto] if texto.strip() else []
 
     fragmentos: list[str] = []
     inicio = 0
     while inicio < len(texto):
         fin = inicio + tamano
-        fragmento = texto[inicio:fin]
-        fragmentos.append(fragmento)
+        fragmento = texto[inicio:fin].strip()
+        if fragmento:
+            fragmentos.append(fragmento)
         inicio += tamano - solapamiento
     return fragmentos
 
 
 # ---------------------------------------------------------------------------
-# Generación de embeddings
+# Generacion de embeddings
 # ---------------------------------------------------------------------------
 
-def generar_embeddings(textos: list[str]) -> list[list[float]]:
-    """Genera embeddings utilizando la API de OpenAI (o compatible).
-
-    En producción se utiliza un modelo de embeddings configurado vía
-    variables de entorno.  Para ejecución local sin API, retorna vectores
-    vacíos y registra una advertencia.
-    """
-    if not OPENAI_API_KEY:
-        logger.warning(
-            "OPENAI_API_KEY no configurada. Se omiten embeddings reales."
-        )
-        return [[0.0] * 1536 for _ in textos]
-
+def generar_embeddings_batch(textos: list[str]) -> list[list[float]]:
+    """Genera embeddings usando la API configurada en las variables de entorno."""
+    # Intentar importar el modulo RAG
     try:
-        import openai
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+        from app.rag.embeddings import generar_embeddings
+        return generar_embeddings(textos)
+    except ImportError:
+        pass
 
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        respuesta = client.embeddings.create(
-            input=textos,
-            model=EMBEDDING_MODEL,
-        )
+    # Fallback: usar openai directamente
+    try:
+        from openai import OpenAI
+
+        base_url = os.environ.get("EMBEDDINGS_BASE_URL", "http://localhost:11434/v1")
+        api_key = os.environ.get("EMBEDDINGS_API_KEY", "ollama")
+        modelo = os.environ.get("EMBEDDINGS_MODEL", "nomic-embed-text")
+
+        cliente = OpenAI(base_url=base_url, api_key=api_key)
+        respuesta = cliente.embeddings.create(input=textos, model=modelo)
         return [item.embedding for item in respuesta.data]
     except Exception as exc:
         logger.error("Error al generar embeddings: %s", exc)
-        return [[0.0] * 1536 for _ in textos]
+        # Vector cero como fallback (permite continuar sin API)
+        dim = int(os.environ.get("EMBEDDINGS_DIMENSIONES", "768"))
+        logger.warning("Usando vectores cero de dimension %d como fallback.", dim)
+        return [[0.0] * dim for _ in textos]
 
 
 # ---------------------------------------------------------------------------
 # Almacenamiento en pgvector
 # ---------------------------------------------------------------------------
 
+def registrar_documento(session, ruta: Path, coleccion: str) -> str:
+    """Registra un documento en la tabla documentos y retorna su ID."""
+    from sqlalchemy import text as sql_text
+
+    doc_id = str(uuid.uuid4())
+    tamano = ruta.stat().st_size
+    tipo_mime = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls": "application/vnd.ms-excel",
+    }.get(ruta.suffix.lower(), "application/octet-stream")
+
+    # Hash del contenido para deteccion de duplicados
+    hash_contenido = hashlib.sha256(ruta.read_bytes()).hexdigest()
+
+    # Verificar si ya existe por hash
+    existente = session.execute(
+        sql_text("SELECT id FROM documentos WHERE hash_contenido = :hash"),
+        {"hash": hash_contenido},
+    ).fetchone()
+
+    if existente:
+        logger.info("  Documento ya existe (hash=%s...), se omite.", hash_contenido[:12])
+        return ""
+
+    session.execute(
+        sql_text("""
+            INSERT INTO documentos (id, nombre_archivo, tipo_mime, tamano_bytes, coleccion,
+                                    estado, ruta_almacenamiento, hash_contenido)
+            VALUES (:id, :nombre, :tipo, :tamano, :col, 'procesando', :ruta, :hash)
+        """),
+        {
+            "id": doc_id,
+            "nombre": ruta.name,
+            "tipo": tipo_mime,
+            "tamano": tamano,
+            "col": coleccion,
+            "ruta": str(ruta),
+            "hash": hash_contenido,
+        },
+    )
+    return doc_id
+
+
 def almacenar_fragmentos(
     session,
-    fragmentos: list[Fragmento],
+    documento_id: str,
+    coleccion: str,
+    fragmentos_texto: list[str],
+    paginas: list[int | None],
     embeddings: list[list[float]],
 ) -> int:
-    """Inserta fragmentos con sus embeddings en la tabla *corpus_chunks*."""
+    """Inserta fragmentos con embeddings en fragmentos_vectoriales."""
+    from sqlalchemy import text as sql_text
+
     insertados = 0
-    for frag, emb in zip(fragmentos, embeddings):
+    for i, (texto, pagina, emb) in enumerate(zip(fragmentos_texto, paginas, embeddings)):
+        frag_id = str(uuid.uuid4())
+        emb_str = "[" + ",".join(str(v) for v in emb) + "]"
+
         try:
             session.execute(
-                text("""
-                    INSERT INTO corpus_chunks
-                        (coleccion, archivo, pagina, contenido, embedding, metadata)
+                sql_text("""
+                    INSERT INTO fragmentos_vectoriales
+                        (id, documento_id, contenido, coleccion, pagina, posicion_fragmento, embedding)
                     VALUES
-                        (:col, :arch, :pag, :cont, :emb, :meta)
+                        (:id, :doc_id, :contenido, :col, :pagina, :pos, CAST(:emb AS vector))
                 """),
                 {
-                    "col": frag.coleccion,
-                    "arch": frag.archivo,
-                    "pag": frag.pagina,
-                    "cont": frag.contenido,
-                    "emb": str(emb),
-                    "meta": str(frag.metadata),
+                    "id": frag_id,
+                    "doc_id": documento_id,
+                    "contenido": texto,
+                    "col": coleccion,
+                    "pagina": pagina,
+                    "pos": i,
+                    "emb": emb_str,
                 },
             )
             insertados += 1
         except Exception as exc:
-            logger.error("Error al insertar fragmento de %s: %s", frag.archivo, exc)
+            logger.error("Error al insertar fragmento %d: %s", i, exc)
+            session.rollback()
+
     return insertados
+
+
+def actualizar_documento_completado(session, documento_id: str, total_fragmentos: int) -> None:
+    """Marca el documento como indexado y actualiza el conteo de fragmentos."""
+    from sqlalchemy import text as sql_text
+
+    session.execute(
+        sql_text("""
+            UPDATE documentos
+            SET estado = 'indexado', total_fragmentos = :total
+            WHERE id = :id
+        """),
+        {"id": documento_id, "total": total_fragmentos},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,13 +361,18 @@ def almacenar_fragmentos(
 # ---------------------------------------------------------------------------
 
 def escanear_corpus(base: Path) -> Iterator[tuple[str, Path]]:
-    """Recorre los directorios de colecciones y genera tuplas (colección, ruta)."""
+    """Recorre las 7 colecciones y genera (coleccion, ruta_archivo)."""
     for coleccion in COLECCIONES:
         directorio = base / coleccion
         if not directorio.is_dir():
-            logger.info("Directorio no encontrado, se omite: %s", directorio)
+            logger.info("Directorio no encontrado: %s — se omite.", directorio)
             continue
-        for archivo in sorted(directorio.rglob("*")):
+
+        archivos = sorted(directorio.rglob("*"))
+        logger.info("Coleccion '%s': %d archivos encontrados.", coleccion,
+                     sum(1 for a in archivos if a.is_file() and a.suffix.lower() in EXTENSIONES_SOPORTADAS))
+
+        for archivo in archivos:
             if archivo.is_file() and archivo.suffix.lower() in EXTENSIONES_SOPORTADAS:
                 yield coleccion, archivo
 
@@ -270,20 +382,34 @@ def escanear_corpus(base: Path) -> Iterator[tuple[str, Path]]:
 # ---------------------------------------------------------------------------
 
 def ingestar() -> None:
-    """Ejecuta el flujo completo de ingestión del corpus."""
+    """Ejecuta el flujo completo de ingestion del corpus."""
     if not DATABASE_URL:
-        logger.error("DATABASE_URL no configurada.")
+        logger.error("DATABASE_URL o DATABASE_URL_SYNC no configurada.")
         sys.exit(1)
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
     engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
     Session = sessionmaker(bind=engine)
     session = Session()
     stats = EstadisticasIngestion()
 
-    logger.info("Iniciando ingestión del corpus desde: %s", CORPUS_DIR.resolve())
+    # Verificar directorio corpus
+    if not CORPUS_DIR.is_dir():
+        logger.error("Directorio de corpus no encontrado: %s", CORPUS_DIR)
+        logger.info("Ejecute primero: scripts/copiar_corpus.bat (Windows) o scripts/copiar_corpus.sh (Linux)")
+        sys.exit(1)
+
+    logger.info("=" * 60)
+    logger.info("  INGESTION DEL CORPUS — CecilIA v2")
+    logger.info("=" * 60)
+    logger.info("Corpus: %s", CORPUS_DIR.resolve())
+    logger.info("DB: %s", DATABASE_URL[:50] + "...")
+    logger.info("")
 
     for coleccion, ruta in escanear_corpus(CORPUS_DIR):
-        logger.info("Procesando [%s] %s …", coleccion, ruta.name)
+        logger.info("[%s] Procesando: %s", coleccion, ruta.name)
         extractor = EXTRACTORES.get(ruta.suffix.lower())
 
         if extractor is None:
@@ -291,60 +417,108 @@ def ingestar() -> None:
             continue
 
         try:
-            paginas = extractor(ruta)
+            paginas_texto = extractor(ruta)
         except Exception as exc:
-            logger.error("Error al extraer texto de %s: %s", ruta, exc)
+            logger.error("  Error al extraer texto: %s", exc)
             stats.errores += 1
             continue
 
-        if not paginas:
+        if not paginas_texto:
+            logger.info("  Sin contenido extraible, se omite.")
             stats.archivos_omitidos += 1
             continue
 
-        fragmentos_doc: list[Fragmento] = []
-        for pagina_num, texto in paginas:
-            trozos = fragmentar_texto(texto)
+        # Registrar documento en la BD
+        try:
+            documento_id = registrar_documento(session, ruta, coleccion)
+            if not documento_id:
+                stats.archivos_omitidos += 1
+                session.rollback()
+                continue
+        except Exception as exc:
+            logger.error("  Error al registrar documento: %s", exc)
+            session.rollback()
+            stats.errores += 1
+            continue
+
+        # Fragmentar cada pagina
+        todos_fragmentos: list[str] = []
+        todas_paginas: list[int | None] = []
+
+        for pagina_num, texto in paginas_texto:
+            trozos = fragmentar_texto(texto, coleccion)
             for trozo in trozos:
-                fragmentos_doc.append(
-                    Fragmento(
-                        coleccion=coleccion,
-                        archivo=ruta.name,
-                        contenido=trozo,
-                        pagina=pagina_num,
-                        metadata={"ruta_original": str(ruta)},
-                    )
-                )
+                todos_fragmentos.append(trozo)
+                todas_paginas.append(pagina_num)
 
-        if not fragmentos_doc:
+        if not todos_fragmentos:
+            logger.info("  Sin fragmentos generables, se omite.")
+            session.rollback()
             stats.archivos_omitidos += 1
             continue
 
-        # Generar embeddings por lotes de 64
-        BATCH = 64
+        # Generar embeddings y almacenar por lotes
         total_insertados = 0
-        for i in range(0, len(fragmentos_doc), BATCH):
-            lote = fragmentos_doc[i : i + BATCH]
-            textos_lote = [f.contenido for f in lote]
-            embs = generar_embeddings(textos_lote)
-            insertados = almacenar_fragmentos(session, lote, embs)
+        for i in range(0, len(todos_fragmentos), EMBEDDING_BATCH_SIZE):
+            lote_textos = todos_fragmentos[i: i + EMBEDDING_BATCH_SIZE]
+            lote_paginas = todas_paginas[i: i + EMBEDDING_BATCH_SIZE]
+
+            try:
+                embs = generar_embeddings_batch(lote_textos)
+            except Exception as exc:
+                logger.error("  Error embeddings lote %d: %s", i, exc)
+                stats.errores += 1
+                continue
+
+            insertados = almacenar_fragmentos(
+                session, documento_id, coleccion,
+                lote_textos, lote_paginas, embs,
+            )
             total_insertados += insertados
 
-        session.commit()
+        # Actualizar estado del documento y hacer commit por documento
+        try:
+            actualizar_documento_completado(session, documento_id, total_insertados)
+            session.commit()
+        except Exception as exc:
+            logger.error("  Error al commit documento %s: %s", ruta.name, exc)
+            session.rollback()
+            stats.errores += 1
+            continue
+
         stats.archivos_procesados += 1
-        stats.fragmentos_generados += len(fragmentos_doc)
+        stats.fragmentos_generados += len(todos_fragmentos)
         stats.embeddings_almacenados += total_insertados
+
         logger.info(
-            "  → %d fragmentos, %d embeddings almacenados",
-            len(fragmentos_doc),
-            total_insertados,
+            "  -> %d fragmentos, %d embeddings almacenados",
+            len(todos_fragmentos), total_insertados,
         )
+
+    # Crear indice IVFFlat si hay suficientes datos
+    try:
+        from sqlalchemy import text as sql_text
+        conteo = session.execute(
+            sql_text("SELECT COUNT(*) FROM fragmentos_vectoriales")
+        ).scalar()
+
+        if conteo and conteo >= 100:
+            logger.info("Creando indice IVFFlat (%d fragmentos)...", conteo)
+            listas = min(max(conteo // 10, 10), 1000)
+            session.execute(sql_text(
+                f"CREATE INDEX IF NOT EXISTS ix_fv_embedding_ivfflat "
+                f"ON fragmentos_vectoriales "
+                f"USING ivfflat (embedding vector_cosine_ops) "
+                f"WITH (lists = {listas})"
+            ))
+            session.commit()
+            logger.info("Indice IVFFlat creado con %d listas.", listas)
+    except Exception as exc:
+        logger.warning("No se pudo crear indice IVFFlat: %s", exc)
 
     session.close()
     logger.info(stats.resumen())
 
 
-# ---------------------------------------------------------------------------
-# Punto de entrada
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     ingestar()

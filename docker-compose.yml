@@ -25,6 +25,7 @@ services:
       POSTGRES_USER: cecilia
       POSTGRES_PASSWORD: cecilia_2026
       POSTGRES_DB: cecilia_db
+    command: ["postgres", "-c", "maintenance_work_mem=256MB", "-c", "shared_buffers=256MB"]
     ports:
       - "5432:5432"
     volumes:
@@ -75,6 +76,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://cecilia:cecilia_2026@postgres:5432/cecilia_db
       DATABASE_URL_SYNC: postgresql+psycopg2://cecilia:cecilia_2026@postgres:5432/cecilia_db
       REDIS_URL: redis://redis:6379/0
+      CORPUS_DIR: /datos/corpus
+    volumes:
+      - ./corpus:/datos/corpus:ro
+      - ./scripts:/app/scripts:ro
     depends_on:
       postgres:
         condition: service_healthy

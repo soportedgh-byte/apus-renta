@@ -1,6 +1,6 @@
 # CecilIA v2 — Dependencias Backend
 # Contraloria General de la Republica de Colombia
-# Sprint: 0 | Abril 2026
+# Sprint: 1 | Abril 2026
 
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
@@ -19,6 +19,7 @@ langchain==0.3.25
 langchain-openai==0.3.18
 langchain-community==0.3.24
 langgraph==0.4.7
+openai==1.82.0
 pgvector==0.4.0
 pymupdf==1.25.5
 python-docx==1.1.2
