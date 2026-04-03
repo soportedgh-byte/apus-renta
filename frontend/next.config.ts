@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // Salida standalone para Docker
+  output: 'standalone',
+
   // Configuracion de imagenes para logos institucionales
   images: {
     remotePatterns: [
@@ -11,15 +14,8 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Reescrituras para proxy al backend API en localhost:8000
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
-      },
-    ];
-  },
+  // Las peticiones /api/* son manejadas por el catch-all route handler
+  // en app/api/[...proxy]/route.ts que lee BACKEND_URL en runtime
 
   // Cabeceras de seguridad
   async headers() {

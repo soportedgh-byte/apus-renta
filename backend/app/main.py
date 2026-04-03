@@ -27,8 +27,11 @@ from app.config import configuracion
 
 
 # ── Motor de base de datos asincrono ──────────────────────────────────────────
+# Convertir URL postgresql:// a postgresql+asyncpg:// para driver asíncrono
+_url_bd = configuracion.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
 motor_asincrono = create_async_engine(
-    configuracion.DATABASE_URL,
+    _url_bd,
     echo=configuracion.DEBUG,
     pool_size=configuracion.DB_POOL_SIZE,
     max_overflow=configuracion.DB_MAX_OVERFLOW,
@@ -77,8 +80,8 @@ app = FastAPI(
         "control fiscal de la Contraloria General de la Republica de Colombia."
     ),
     version=__version__,
-    docs_url="/docs" if configuracion.DEBUG else None,
-    redoc_url="/redoc" if configuracion.DEBUG else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=ciclo_de_vida,
 )
 
@@ -114,36 +117,38 @@ configurar_telemetria()
 FastAPIInstrumentor.instrument_app(app)
 
 
-# ── Registro de routers ──────────────────────────────────────────────────────
-from app.api.auth_routes import enrutador as enrutador_auth  # noqa: E402
+# ── Registro de routers (carga segura) ───────────────────────────────────────
+import importlib
+import logging
 
-app.include_router(enrutador_auth, prefix="/api/auth", tags=["Autenticacion"])
+_logger = logging.getLogger("cecilia.startup")
 
-from app.api.chat_routes import enrutador as enrutador_chat  # noqa: E402
-from app.api.document_routes import enrutador as enrutador_documentos  # noqa: E402
-from app.api.audit_routes import enrutador as enrutador_auditorias  # noqa: E402
-from app.api.hallazgo_routes import enrutador as enrutador_hallazgos  # noqa: E402
-from app.api.format_routes import enrutador as enrutador_formatos  # noqa: E402
-from app.api.rag_routes import enrutador as enrutador_rag  # noqa: E402
-from app.api.integracion_routes import enrutador as enrutador_integraciones  # noqa: E402
-from app.api.analytics_routes import enrutador as enrutador_analitica  # noqa: E402
-from app.api.admin_routes import enrutador as enrutador_admin  # noqa: E402
-from app.api.agent_ws import enrutador as enrutador_ws  # noqa: E402
+_RUTAS: list[tuple[str, str, str]] = [
+    ("app.api.auth_routes", "/api/auth", "Autenticacion"),
+    ("app.api.chat_routes", "/api/chat", "Chat"),
+    ("app.api.document_routes", "/api/documentos", "Documentos"),
+    ("app.api.audit_routes", "/api/auditorias", "Auditorias"),
+    ("app.api.hallazgo_routes", "/api/hallazgos", "Hallazgos"),
+    ("app.api.format_routes", "/api/formatos", "Formatos CGR"),
+    ("app.api.rag_routes", "/api/rag", "RAG"),
+    ("app.api.integracion_routes", "/api/integraciones", "Integraciones"),
+    ("app.api.analytics_routes", "/api/analytics", "Analitica"),
+    ("app.api.admin_routes", "/api/admin", "Administracion"),
+    ("app.api.agent_ws", "/api/ws", "WebSocket Agente"),
+]
 
-app.include_router(enrutador_chat, prefix="/api/chat", tags=["Chat"])
-app.include_router(enrutador_documentos, prefix="/api/documentos", tags=["Documentos"])
-app.include_router(enrutador_auditorias, prefix="/api/auditorias", tags=["Auditorias"])
-app.include_router(enrutador_hallazgos, prefix="/api/hallazgos", tags=["Hallazgos"])
-app.include_router(enrutador_formatos, prefix="/api/formatos", tags=["Formatos CGR"])
-app.include_router(enrutador_rag, prefix="/api/rag", tags=["RAG"])
-app.include_router(enrutador_integraciones, prefix="/api/integraciones", tags=["Integraciones"])
-app.include_router(enrutador_analitica, prefix="/api/analytics", tags=["Analitica"])
-app.include_router(enrutador_admin, prefix="/api/admin", tags=["Administracion"])
-app.include_router(enrutador_ws, prefix="/api/ws", tags=["WebSocket Agente"])
+for _modulo, _prefijo, _tag in _RUTAS:
+    try:
+        _mod = importlib.import_module(_modulo)
+        app.include_router(_mod.enrutador, prefix=_prefijo, tags=[_tag])
+        _logger.info("Router registrado: %s -> %s", _tag, _prefijo)
+    except Exception as _exc:
+        _logger.warning("No se pudo cargar %s: %s", _modulo, _exc)
 
 
 # ── Endpoints de salud ────────────────────────────────────────────────────────
 @app.get("/salud", tags=["Sistema"])
+@app.get("/api/health", tags=["Sistema"])
 async def verificar_salud() -> dict[str, str]:
     """Endpoint de verificacion de salud del servicio."""
     return {

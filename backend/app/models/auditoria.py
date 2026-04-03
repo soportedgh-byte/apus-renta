@@ -9,91 +9,53 @@ Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-import enum
-from datetime import date, datetime
-from typing import Optional
+from datetime import datetime
+from typing import Any, Optional
 
-from sqlalchemy import Date, DateTime, Enum, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 
-class TipoAuditoria(str, enum.Enum):
-    """Tipos de auditoria segun la normativa de la CGR."""
-
-    FINANCIERA = "financiera"
-    CUMPLIMIENTO = "cumplimiento"
-    DESEMPENO = "desempeno"
-    ESPECIAL = "especial"
-
-
-class EstadoAuditoria(str, enum.Enum):
-    """Estados del ciclo de vida de una auditoria."""
-
-    PLANEACION = "planeacion"
-    EJECUCION = "ejecucion"
-    INFORME = "informe"
-    SEGUIMIENTO = "seguimiento"
-    CERRADA = "cerrada"
-
-
 class Auditoria(Base):
-    """Modelo de auditoria.
-
-    Representa un proceso de auditoria completo, desde su planeacion
-    hasta su cierre, con la entidad auditada y vigencia fiscal.
-    """
+    """Modelo de auditoria — alineado con migracion 001."""
 
     __tablename__ = "auditorias"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(
-        String(500), nullable=False,
-        comment="Nombre descriptivo de la auditoria",
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(500), nullable=False)
+    entidad_auditada: Mapped[str] = mapped_column(String(500), nullable=False)
+    tipo_auditoria: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        comment="financiera | cumplimiento | desempeno | especial | integral",
     )
-    entidad_auditada: Mapped[str] = mapped_column(
-        String(500), nullable=False,
-        comment="Nombre de la entidad sujeta a auditoria",
+    vigencia: Mapped[str] = mapped_column(String(20), nullable=False)
+    direccion: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    fase_actual: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="preplaneacion", index=True,
     )
-    vigencia: Mapped[str] = mapped_column(
-        String(20), nullable=False,
-        comment="Vigencia fiscal auditada (ej: 2025, 2024-2025)",
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_inicio_planeada: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_fin_planeada: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_inicio_real: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_fin_real: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    usuario_creador_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True,
     )
-    tipo: Mapped[TipoAuditoria] = mapped_column(
-        Enum(TipoAuditoria, name="tipo_auditoria_enum"),
-        nullable=False,
-        comment="Tipo de auditoria segun clasificacion CGR",
-    )
-    direccion: Mapped[str] = mapped_column(
-        String(10), nullable=False,
-        comment="Direccion misional responsable (DES/DVF)",
-    )
-    estado: Mapped[EstadoAuditoria] = mapped_column(
-        Enum(EstadoAuditoria, name="estado_auditoria_enum"),
-        nullable=False,
-        default=EstadoAuditoria.PLANEACION,
-        comment="Estado actual del proceso de auditoria",
-    )
-    fecha_inicio: Mapped[Optional[date]] = mapped_column(
-        Date, nullable=True,
-        comment="Fecha de inicio de la auditoria",
-    )
-    fecha_fin: Mapped[Optional[date]] = mapped_column(
-        Date, nullable=True,
-        comment="Fecha de finalizacion de la auditoria",
-    )
+    metadata_extra: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
     )
 
     # ── Relaciones ────────────────────────────────────────────────────────
     proyectos: Mapped[list["ProyectoAuditoria"]] = relationship(  # type: ignore[name-defined]
-        "ProyectoAuditoria", back_populates="auditoria", lazy="selectin",
+        "ProyectoAuditoria", back_populates="auditoria", lazy="noload",
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<Auditoria(id={self.id}, nombre='{self.nombre[:30]}...', "
-            f"tipo='{self.tipo}', estado='{self.estado}')>"
-        )
+        return f"<Auditoria(id={self.id}, nombre='{self.nombre[:30]}...')>"

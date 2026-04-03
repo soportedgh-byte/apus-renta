@@ -232,6 +232,7 @@ async def obtener_documento(
 @enrutador.delete(
     "/{documento_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Eliminar documento",
     description="Elimina un documento del sistema y su índice vectorial.",
 )

@@ -108,15 +108,7 @@ async def ejecutar_migraciones_online() -> None:
     """
     configuracion_engine: dict[str, Any] = {
         "sqlalchemy.url": url_asincrona,
-        "sqlalchemy.pool_class": "sqlalchemy.pool.NullPool",
     }
-
-    # Sobrescribir la configuración del motor desde alembic.ini con valores dinámicos
-    configuracion_alembic.set_section_option(
-        configuracion_alembic.config_ini_section,
-        "sqlalchemy.url",
-        url_asincrona,
-    )
 
     motor_conectar = async_engine_from_config(
         configuracion_engine,

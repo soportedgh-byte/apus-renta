@@ -9,75 +9,45 @@ Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
-import enum
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 
-class ColeccionDocumento(str, enum.Enum):
-    """Colecciones disponibles para clasificacion de documentos RAG."""
-
-    NORMATIVO = "normativo"
-    INSTITUCIONAL = "institucional"
-    ACADEMICO = "academico"
-    TECNICO_TIC = "tecnico_tic"
-    ESTADISTICO = "estadistico"
-    JURISPRUDENCIAL = "jurisprudencial"
-    AUDITORIA = "auditoria"
-
-
 class Documento(Base):
-    """Modelo de documento del sistema.
-
-    Representa un documento cargado por un usuario, clasificado
-    en una coleccion especifica para su procesamiento y consulta RAG.
-    """
+    """Modelo de documento — alineado con migracion 001."""
 
     __tablename__ = "documentos"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(
-        String(500), nullable=False,
-        comment="Nombre original del archivo cargado",
-    )
-    tipo_archivo: Mapped[str] = mapped_column(
-        String(50), nullable=False,
-        comment="Extension o tipo MIME del archivo (pdf, docx, xlsx, etc.)",
-    )
-    tamano_bytes: Mapped[int] = mapped_column(
-        Integer, nullable=False,
-        comment="Tamano del archivo en bytes",
-    )
-    coleccion: Mapped[ColeccionDocumento] = mapped_column(
-        Enum(ColeccionDocumento, name="coleccion_documento_enum"),
-        nullable=False,
-        index=True,
-        comment="Coleccion tematica del documento para RAG",
-    )
-    hash_sha256: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False,
-        comment="Hash SHA-256 del contenido para deduplicacion",
-    )
-    chunks_count: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False,
-        comment="Cantidad de fragmentos generados para RAG",
-    )
-    usuario_id: Mapped[int] = mapped_column(
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    usuario_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True,
-        comment="Usuario que cargo el documento",
     )
-    metadata_json: Mapped[Optional[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, default=None,
-        comment="Metadatos adicionales del documento (autor, fecha, etc.)",
+    nombre_archivo: Mapped[str] = mapped_column(String(500), nullable=False)
+    tipo_mime: Mapped[str] = mapped_column(String(100), nullable=False)
+    tamano_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    coleccion: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="general", index=True,
     )
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="subido",
+        comment="subido | procesando | indexado | error",
+    )
+    ruta_almacenamiento: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    hash_contenido: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    total_fragmentos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    etiquetas: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String), nullable=True)
+    metadata_extra: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
     )
 
     # ── Relaciones ────────────────────────────────────────────────────────
@@ -86,4 +56,4 @@ class Documento(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Documento(id={self.id}, nombre='{self.nombre}', coleccion='{self.coleccion}')>"
+        return f"<Documento(id={self.id}, nombre='{self.nombre_archivo}')>"

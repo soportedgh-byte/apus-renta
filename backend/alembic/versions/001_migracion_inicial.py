@@ -40,22 +40,25 @@ def upgrade() -> None:
 
     # ── Tipos enumerados ─────────────────────────────────────────────────
 
+    # Crear enums explícitamente antes de las tablas
+    op.execute("DO $$ BEGIN CREATE TYPE rol_usuario_enum AS ENUM ('auditor_des', 'auditor_dvf', 'profesional_des', 'profesional_dvf', 'director_des', 'director_dvf', 'admin_tic', 'observatorio'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE direccion_usuario_enum AS ENUM ('DES', 'DVF'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+
+    # Usar create_type=False para que create_table NO intente crearlos otra vez
     tipo_rol_usuario = postgresql.ENUM(
         "auditor_des", "auditor_dvf",
         "profesional_des", "profesional_dvf",
         "director_des", "director_dvf",
         "admin_tic", "observatorio",
         name="rol_usuario_enum",
-        create_type=True,
+        create_type=False,
     )
-    tipo_rol_usuario.create(op.get_bind(), checkfirst=True)
 
     tipo_direccion_usuario = postgresql.ENUM(
         "DES", "DVF",
         name="direccion_usuario_enum",
-        create_type=True,
+        create_type=False,
     )
-    tipo_direccion_usuario.create(op.get_bind(), checkfirst=True)
 
     # ── Tabla: usuarios ──────────────────────────────────────────────────
 
@@ -404,13 +407,15 @@ def upgrade() -> None:
     op.create_index("ix_fragmentos_vectoriales_documento_id", "fragmentos_vectoriales", ["documento_id"])
     op.create_index("ix_fragmentos_vectoriales_coleccion", "fragmentos_vectoriales", ["coleccion"])
 
-    # Índice HNSW para búsqueda de similitud coseno eficiente
-    op.execute(
-        "CREATE INDEX ix_fragmentos_vectoriales_embedding_hnsw "
-        "ON fragmentos_vectoriales "
-        "USING hnsw (embedding vector_cosine_ops) "
-        "WITH (m = 16, ef_construction = 64)"
-    )
+    # Índice IVFFlat para búsqueda de similitud coseno (HNSW no soporta >2000 dims)
+    # Se crea solo cuando haya datos: CREATE INDEX CONCURRENTLY requiere filas
+    # Por ahora se omite y se crea bajo demanda al ingestar documentos
+    # op.execute(
+    #     "CREATE INDEX ix_fragmentos_vectoriales_embedding_ivfflat "
+    #     "ON fragmentos_vectoriales "
+    #     "USING ivfflat (embedding vector_cosine_ops) "
+    #     "WITH (lists = 100)"
+    # )
 
 
 def downgrade() -> None:

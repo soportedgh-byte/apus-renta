@@ -24,9 +24,22 @@ from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from app.main import obtener_sesion_db
-
 logger = logging.getLogger("cecilia.api.chat")
+
+
+async def _obtener_sesion_db():
+    """Provee una sesion de base de datos para los endpoints de chat."""
+    from app.main import fabrica_sesiones
+    async with fabrica_sesiones() as sesion:
+        try:
+            yield sesion
+            await sesion.commit()
+        except Exception:
+            await sesion.rollback()
+            raise
+
+
+obtener_sesion_db = _obtener_sesion_db
 
 enrutador = APIRouter()
 
@@ -234,6 +247,7 @@ async def obtener_conversacion(
 @enrutador.delete(
     "/conversaciones/{conversacion_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
     summary="Eliminar conversación",
     description="Elimina una conversación y todos sus mensajes asociados.",
 )

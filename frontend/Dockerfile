@@ -3,16 +3,11 @@
 # Contraloria General de la Republica de Colombia
 # =============================================================================
 
-# Etapa 1: Dependencias
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production
-
-# Etapa 2: Compilacion
+# Etapa 1: Dependencias e instalacion
 FROM node:22-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+RUN npm install
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1

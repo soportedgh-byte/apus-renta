@@ -21,6 +21,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.jwt_handler import verificar_token
 from app.models.usuario import Usuario
 
+async def _obtener_sesion_placeholder() -> None:  # type: ignore[return]
+    """Placeholder para la dependencia de sesion de base de datos.
+
+    En produccion, este placeholder se reemplaza con la dependencia real
+    `obtener_sesion_db` de app.main al registrar las rutas.
+    """
+    raise NotImplementedError(
+        "Esta dependencia debe ser sobreescrita con obtener_sesion_db de app.main"
+    )
+
+
 # Esquema de seguridad Bearer para extraer el token del encabezado Authorization
 esquema_bearer = HTTPBearer(
     scheme_name="Token JWT",
@@ -103,18 +114,3 @@ async def obtener_usuario_actual(
         )
 
     return usuario
-
-
-async def _obtener_sesion_placeholder() -> None:  # type: ignore[return]
-    """Placeholder para la dependencia de sesion de base de datos.
-
-    En produccion, este placeholder se reemplaza con la dependencia real
-    `obtener_sesion_db` de app.main al registrar las rutas. Esto evita
-    importaciones circulares entre main.py y middleware.py.
-
-    La inyeccion real se hace en app/api/auth_routes.py mediante:
-        Depends(obtener_sesion_db)
-    """
-    raise NotImplementedError(
-        "Esta dependencia debe ser sobreescrita con obtener_sesion_db de app.main"
-    )

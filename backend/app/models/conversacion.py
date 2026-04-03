@@ -10,52 +10,37 @@ Fecha: Abril 2026
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 
 class Conversacion(Base):
-    """Modelo de conversacion.
-
-    Cada conversacion pertenece a un usuario y puede estar vinculada
-    a un proyecto de auditoria especifico. Almacena la fase actual
-    del proceso auditor y metadatos de contexto.
-    """
+    """Modelo de conversacion — alineado con migracion 001."""
 
     __tablename__ = "conversaciones"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
     usuario_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True,
-        comment="Referencia al usuario propietario de la conversacion",
     )
     titulo: Mapped[str] = mapped_column(
-        String(500), nullable=False, default="Nueva conversacion",
-        comment="Titulo descriptivo de la conversacion",
+        String(500), nullable=False, server_default="Nueva conversacion",
     )
-    direccion: Mapped[Optional[str]] = mapped_column(
-        String(10), nullable=True,
-        comment="Direccion misional asociada (DES/DVF)",
-    )
-    fase_actual: Mapped[Optional[str]] = mapped_column(
+    modelo_utilizado: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True,
-        comment="Fase actual del proceso auditor en esta conversacion",
     )
-    proyecto_auditoria_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        ForeignKey("proyectos_auditoria.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="Proyecto de auditoria vinculado (opcional)",
+    fase: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True,
     )
-    metadata_json: Mapped[Optional[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=True, default=None,
-        comment="Metadatos adicionales de la conversacion en formato JSON",
+    proyecto_auditoria_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True,
+    )
+    total_mensajes: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
@@ -69,11 +54,8 @@ class Conversacion(Base):
         "Usuario", back_populates="conversaciones",
     )
     mensajes: Mapped[list["Mensaje"]] = relationship(  # type: ignore[name-defined]
-        "Mensaje", back_populates="conversacion", lazy="selectin",
+        "Mensaje", back_populates="conversacion", lazy="noload",
         order_by="Mensaje.created_at",
-    )
-    proyecto_auditoria: Mapped[Optional["ProyectoAuditoria"]] = relationship(  # type: ignore[name-defined]
-        "ProyectoAuditoria", back_populates="conversaciones",
     )
 
     def __repr__(self) -> str:

@@ -39,10 +39,10 @@ services:
       - cecilia-net
 
   # ─────────────────────────────────────────────────────
-  # Redis 8 Alpine — Caché y cola de tareas
+  # Redis 7 Alpine — Caché y sesiones
   # ─────────────────────────────────────────────────────
   redis:
-    image: redis:8-alpine
+    image: redis:7-alpine
     container_name: cecilia-redis
     restart: unless-stopped
     ports:
@@ -72,7 +72,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://cecilia:cecilia_2026@postgres:5432/cecilia_db
+      DATABASE_URL: postgresql+asyncpg://cecilia:cecilia_2026@postgres:5432/cecilia_db
+      DATABASE_URL_SYNC: postgresql+psycopg2://cecilia:cecilia_2026@postgres:5432/cecilia_db
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
@@ -80,11 +81,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/salud')"]
       interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 30s
     networks:
       - cecilia-net
 
@@ -101,6 +102,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8000/api/v1
+      BACKEND_URL: http://backend:8000
     depends_on:
       backend:
         condition: service_healthy

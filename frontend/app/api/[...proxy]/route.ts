@@ -6,13 +6,13 @@ import { NextRequest, NextResponse } from 'next/server';
  * no cubran algún caso particular.
  */
 
-const URL_BACKEND = process.env.BACKEND_URL || 'http://localhost:8000';
-
 async function proxyPeticion(request: NextRequest): Promise<NextResponse> {
+  // Leer BACKEND_URL en cada petición para garantizar que se use el valor de runtime
+  const urlBackend = process.env.BACKEND_URL || 'http://localhost:8000';
   const url = new URL(request.url);
   const rutaAPI = url.pathname; // Ya incluye /api/...
   const queryString = url.search;
-  const urlDestino = `${URL_BACKEND}${rutaAPI}${queryString}`;
+  const urlDestino = `${urlBackend}${rutaAPI}${queryString}`;
 
   try {
     // Construir headers, propagando autorizacion

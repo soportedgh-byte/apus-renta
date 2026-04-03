@@ -87,14 +87,16 @@ class RespuestaLogout(BaseModel):
 
 
 # ── Dependencia de sesion de base de datos ────────────────────────────────────
-# Se importa aqui para evitar importaciones circulares con main.py
-def _obtener_sesion_db_dep() -> Any:
-    """Retorna la dependencia de sesion de base de datos de main.py.
-
-    Se resuelve en tiempo de ejecucion para evitar importaciones circulares.
-    """
-    from app.main import obtener_sesion_db
-    return obtener_sesion_db
+async def obtener_sesion() -> Any:
+    """Provee una sesion de base de datos para los endpoints de auth."""
+    from app.main import fabrica_sesiones
+    async with fabrica_sesiones() as sesion:
+        try:
+            yield sesion
+            await sesion.commit()
+        except Exception:
+            await sesion.rollback()
+            raise
 
 
 # ── POST /api/auth/login ─────────────────────────────────────────────────────
@@ -106,23 +108,9 @@ def _obtener_sesion_db_dep() -> Any:
 )
 async def login(
     solicitud: SolicitudLogin,
-    sesion: AsyncSession = Depends(lambda: _obtener_sesion_db_dep()),
+    sesion: AsyncSession = Depends(obtener_sesion),
 ) -> RespuestaLogin:
-    """Autentica un usuario con sus credenciales.
-
-    Flujo:
-        1. Busca al usuario por nombre de usuario
-        2. Verifica la contrasena con bcrypt
-        3. Genera token de acceso y de refresco
-        4. Actualiza la fecha de ultimo acceso
-        5. Retorna tokens y datos del perfil con permisos del rol
-    """
-    # Resolver la dependencia de sesion correctamente
-    from app.main import obtener_sesion_db
-    async for sesion_real in obtener_sesion_db():
-        sesion = sesion_real
-        break
-
+    """Autentica un usuario con sus credenciales."""
     # Buscar usuario
     resultado = await sesion.execute(
         select(Usuario).where(Usuario.usuario == solicitud.usuario)
@@ -153,8 +141,8 @@ async def login(
     datos_token: dict[str, Any] = {
         "sub": str(usuario_db.id),
         "usuario": usuario_db.usuario,
-        "rol": usuario_db.rol.value,
-        "direccion": usuario_db.direccion.value if usuario_db.direccion else None,
+        "rol": usuario_db.rol.value if hasattr(usuario_db.rol, 'value') else usuario_db.rol,
+        "direccion": (usuario_db.direccion.value if usuario_db.direccion and hasattr(usuario_db.direccion, 'value') else usuario_db.direccion),
     }
 
     from app.config import configuracion
@@ -168,10 +156,10 @@ async def login(
         .where(Usuario.id == usuario_db.id)
         .values(ultimo_acceso=datetime.now(timezone.utc))
     )
-    await sesion.commit()
 
     # Obtener configuracion del rol
-    rol_config: dict[str, Any] = ROLES.get(usuario_db.rol.value, {})
+    rol_valor = usuario_db.rol.value if hasattr(usuario_db.rol, 'value') else usuario_db.rol
+    rol_config: dict[str, Any] = ROLES.get(rol_valor, {})
 
     return RespuestaLogin(
         token_acceso=token_acceso,
@@ -183,8 +171,8 @@ async def login(
             "usuario": usuario_db.usuario,
             "nombre_completo": usuario_db.nombre_completo,
             "email": usuario_db.email,
-            "rol": usuario_db.rol.value,
-            "direccion": usuario_db.direccion.value if usuario_db.direccion else None,
+            "rol": rol_valor,
+            "direccion": (usuario_db.direccion.value if usuario_db.direccion and hasattr(usuario_db.direccion, 'value') else usuario_db.direccion),
             "modulos": rol_config.get("modulos", []),
             "permisos": rol_config.get("permisos", []),
             "acciones_rapidas": rol_config.get("acciones_rapidas", []),
@@ -231,13 +219,12 @@ async def refresh(solicitud: SolicitudRefresh) -> RespuestaRefresh:
         )
 
     # Buscar usuario para obtener datos actualizados del rol
-    from app.main import obtener_sesion_db
-    async for sesion in obtener_sesion_db():
+    from app.main import fabrica_sesiones
+    async with fabrica_sesiones() as sesion:
         resultado = await sesion.execute(
             select(Usuario).where(Usuario.id == int(usuario_id))
         )
         usuario_db: Usuario | None = resultado.scalar_one_or_none()
-        break
 
     if usuario_db is None or not usuario_db.activo:
         raise HTTPException(
@@ -245,11 +232,12 @@ async def refresh(solicitud: SolicitudRefresh) -> RespuestaRefresh:
             detail="Usuario no encontrado o desactivado.",
         )
 
+    rol_valor = usuario_db.rol.value if hasattr(usuario_db.rol, 'value') else usuario_db.rol
     datos_token: dict[str, Any] = {
         "sub": str(usuario_db.id),
         "usuario": usuario_db.usuario,
-        "rol": usuario_db.rol.value,
-        "direccion": usuario_db.direccion.value if usuario_db.direccion else None,
+        "rol": rol_valor,
+        "direccion": (usuario_db.direccion.value if usuario_db.direccion and hasattr(usuario_db.direccion, 'value') else usuario_db.direccion),
     }
 
     from app.config import configuracion
@@ -297,13 +285,12 @@ async def perfil_usuario(
             detail="Token no contiene identificador de usuario.",
         )
 
-    from app.main import obtener_sesion_db
-    async for sesion in obtener_sesion_db():
+    from app.main import fabrica_sesiones
+    async with fabrica_sesiones() as sesion:
         resultado = await sesion.execute(
             select(Usuario).where(Usuario.id == int(usuario_id))
         )
         usuario_db: Usuario | None = resultado.scalar_one_or_none()
-        break
 
     if usuario_db is None:
         raise HTTPException(
@@ -311,15 +298,16 @@ async def perfil_usuario(
             detail="Usuario no encontrado.",
         )
 
-    rol_config: dict[str, Any] = ROLES.get(usuario_db.rol.value, {})
+    rol_valor = usuario_db.rol.value if hasattr(usuario_db.rol, 'value') else usuario_db.rol
+    rol_config: dict[str, Any] = ROLES.get(rol_valor, {})
 
     return RespuestaPerfil(
         id=usuario_db.id,
         usuario=usuario_db.usuario,
         nombre_completo=usuario_db.nombre_completo,
         email=usuario_db.email,
-        rol=usuario_db.rol.value,
-        direccion=usuario_db.direccion.value if usuario_db.direccion else None,
+        rol=rol_valor,
+        direccion=(usuario_db.direccion.value if usuario_db.direccion and hasattr(usuario_db.direccion, 'value') else usuario_db.direccion),
         activo=usuario_db.activo,
         modulos=rol_config.get("modulos", []),
         permisos=rol_config.get("permisos", []),

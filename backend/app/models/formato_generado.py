@@ -12,65 +12,42 @@ Fecha: Abril 2026
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
 
 class FormatoGenerado(Base):
-    """Modelo de formato oficial generado.
-
-    Representa uno de los 30 formatos oficiales del proceso auditor
-    de la CGR, generado con asistencia de CecilIA v2 y almacenado
-    en formato JSON estructurado.
-    """
+    """Modelo de formato generado — alineado con migracion 001."""
 
     __tablename__ = "formatos_generados"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre_formato: Mapped[str] = mapped_column(
-        String(300), nullable=False,
-        comment="Nombre oficial del formato CGR",
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    numero_formato: Mapped[int] = mapped_column(SmallInteger, nullable=False, index=True)
+    nombre_formato: Mapped[str] = mapped_column(String(300), nullable=False)
+    auditoria_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("auditorias.id", ondelete="SET NULL"), nullable=True, index=True,
     )
-    numero_formato: Mapped[int] = mapped_column(
-        Integer, nullable=False,
-        comment="Numero del formato (1 a 30) segun la guia de auditoria CGR",
-    )
-    contenido_json: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False,
-        comment="Contenido estructurado del formato en JSON",
-    )
-    proyecto_auditoria_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        ForeignKey("proyectos_auditoria.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-        comment="Proyecto de auditoria asociado",
-    )
-    usuario_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("usuarios.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        comment="Usuario que genero el formato",
+    usuario_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True,
     )
     estado: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="borrador",
-        comment="Estado del formato: borrador, revision, aprobado, exportado",
+        String(20), nullable=False, server_default="generando",
     )
+    generado_con_ia: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="true",
+    )
+    ruta_archivo: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    parametros: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    contenido_generado: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
     )
-
-    # ── Relaciones ────────────────────────────────────────────────────────
-    proyecto_auditoria: Mapped[Optional["ProyectoAuditoria"]] = relationship(  # type: ignore[name-defined]
-        "ProyectoAuditoria", back_populates="formatos_generados",
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<FormatoGenerado(id={self.id}, numero={self.numero_formato}, "
-            f"nombre='{self.nombre_formato[:30]}...', estado='{self.estado}')>"
-        )
+        return f"<FormatoGenerado(id={self.id}, numero={self.numero_formato})>"

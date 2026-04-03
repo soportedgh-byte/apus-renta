@@ -62,12 +62,12 @@ class Usuario(Base):
         comment="Correo electronico institucional",
     )
     rol: Mapped[RolUsuario] = mapped_column(
-        Enum(RolUsuario, name="rol_usuario_enum"),
+        Enum(RolUsuario, name="rol_usuario_enum", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
         comment="Rol del usuario en el sistema",
     )
     direccion: Mapped[Optional[DireccionUsuario]] = mapped_column(
-        Enum(DireccionUsuario, name="direccion_usuario_enum"),
+        Enum(DireccionUsuario, name="direccion_usuario_enum", values_callable=lambda e: [x.value for x in e]),
         nullable=True,
         comment="Direccion misional (DES/DVF) — nulo para admin_tic",
     )
@@ -92,13 +92,13 @@ class Usuario(Base):
 
     # ── Relaciones ────────────────────────────────────────────────────────
     conversaciones: Mapped[list["Conversacion"]] = relationship(  # type: ignore[name-defined]
-        "Conversacion", back_populates="usuario", lazy="selectin",
+        "Conversacion", back_populates="usuario", lazy="noload",
     )
     documentos: Mapped[list["Documento"]] = relationship(  # type: ignore[name-defined]
-        "Documento", back_populates="usuario", lazy="selectin",
+        "Documento", back_populates="usuario", lazy="noload",
     )
     hallazgos: Mapped[list["Hallazgo"]] = relationship(  # type: ignore[name-defined]
-        "Hallazgo", back_populates="usuario", lazy="selectin",
+        "Hallazgo", back_populates="usuario", lazy="noload",
     )
 
     def __repr__(self) -> str:
