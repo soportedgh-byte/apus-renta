@@ -36,6 +36,9 @@ class Conversacion(Base):
     fase: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True,
     )
+    direccion: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True, server_default="DES",
+    )
     proyecto_auditoria_id: Mapped[Optional[str]] = mapped_column(
         String(36), nullable=True,
     )

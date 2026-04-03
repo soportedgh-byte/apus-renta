@@ -12,13 +12,14 @@ import type { Mensaje, Direccion, CitaFuente } from '@/lib/types';
 
 interface PropiedadesChat {
   conversacionId?: string;
+  alCambiarConversacion?: (id: string, titulo: string) => void;
 }
 
 /**
  * Ventana principal de chat
  * Contiene historial de mensajes, area de entrada y acciones rapidas
  */
-export function VentanaChat({ conversacionId }: PropiedadesChat) {
+export function VentanaChat({ conversacionId, alCambiarConversacion }: PropiedadesChat) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [cargando, setCargando] = useState(false);
   const [enStreaming, setEnStreaming] = useState(false);
@@ -29,6 +30,18 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
 
   const refFinal = useRef<HTMLDivElement>(null);
   const refCancelarStreaming = useRef<(() => void) | null>(null);
+  const refMensajeStreaming = useRef<string>('');
+  const refCitasStreaming = useRef<CitaFuente[]>([]);
+
+  // Sincronizar prop con estado
+  useEffect(() => {
+    setIdConversacion(conversacionId);
+    if (conversacionId) {
+      cargarHistorial(conversacionId);
+    } else {
+      setMensajes([]);
+    }
+  }, [conversacionId]);
 
   // Cargar direccion activa
   useEffect(() => {
@@ -36,24 +49,25 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
     if (dir) setDireccion(dir);
   }, []);
 
-  // Cargar historial si hay conversacion
-  useEffect(() => {
-    if (idConversacion) {
-      cargarHistorial();
-    }
-  }, [idConversacion]);
-
   // Scroll automatico al final
   useEffect(() => {
     refFinal.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensajes, mensajeStreaming]);
 
-  const cargarHistorial = async () => {
-    if (!idConversacion) return;
+  const cargarHistorial = async (convId: string) => {
+    if (!convId) return;
     setCargando(true);
     try {
-      const datos = await apiCliente.get<{ mensajes: Mensaje[] }>(`/chat/${idConversacion}`);
-      setMensajes(datos.mensajes || []);
+      const datos = await apiCliente.get<{ mensajes: { id: string; conversacion_id: string; rol: string; contenido: string; fuentes?: any; created_at: string }[] }>(`/chat/conversaciones/${convId}`);
+      const mensajesCargados: Mensaje[] = (datos.mensajes || []).map((m) => ({
+        id: m.id,
+        conversacion_id: m.conversacion_id,
+        rol: m.rol as 'user' | 'assistant' | 'system',
+        contenido: m.contenido,
+        citas: m.fuentes ? (Array.isArray(m.fuentes) ? m.fuentes : []) : undefined,
+        fecha_creacion: m.created_at,
+      }));
+      setMensajes(mensajesCargados);
     } catch (error) {
       console.error('[CecilIA] Error al cargar historial:', error);
     } finally {
@@ -80,12 +94,22 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
     let idConv = idConversacion;
     if (!idConv) {
       try {
-        const nueva = await apiCliente.post<{ id: string }>('/chat/conversaciones', {
+        const nueva = await apiCliente.post<{ id: string; titulo: string }>('/chat/conversaciones', {
           direccion,
           mensaje_inicial: texto,
         });
         idConv = nueva.id;
         setIdConversacion(idConv);
+
+        // Notificar al sidebar
+        if (alCambiarConversacion) {
+          alCambiarConversacion(nueva.id, nueva.titulo || texto.slice(0, 50));
+        }
+
+        // Actualizar URL sin recargar
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', `/chat?id=${idConv}`);
+        }
       } catch (error) {
         console.error('[CecilIA] Error al crear conversacion:', error);
         setEnStreaming(false);
@@ -93,40 +117,42 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
       }
     }
 
+    // Reset refs
+    refMensajeStreaming.current = '';
+    refCitasStreaming.current = [];
+
     // Iniciar streaming
     const callbacks: CallbacksStreaming = {
       alRecibirToken: (token) => {
-        setMensajeStreaming((prev) => prev + token);
+        refMensajeStreaming.current += token;
+        setMensajeStreaming(refMensajeStreaming.current);
       },
       alRecibirCita: (cita) => {
-        setCitasStreaming((prev) => [...prev, cita]);
+        refCitasStreaming.current = [...refCitasStreaming.current, cita];
+        setCitasStreaming(refCitasStreaming.current);
       },
       alCompletar: () => {
         setEnStreaming(false);
-        // Agregar el mensaje completo del asistente
-        setMensajes((prev) => [
-          ...prev,
-          {
-            id: `resp-${Date.now()}`,
-            conversacion_id: idConv || '',
-            rol: 'assistant',
-            contenido: '',  // Se actualiza abajo
-            citas: [],
-            modelo_llm: 'claude-sonnet-4-20250514',
-            fecha_creacion: new Date().toISOString(),
-          },
-        ]);
-        // Mover el contenido del streaming al ultimo mensaje
-        setMensajes((prev) => {
-          const actualizados = [...prev];
-          const ultimo = actualizados[actualizados.length - 1];
-          if (ultimo && ultimo.rol === 'assistant') {
-            // Se actualizara con el estado actual
-          }
-          return actualizados;
-        });
+        const contenidoFinal = refMensajeStreaming.current;
+        const citasFinales = refCitasStreaming.current;
+        if (contenidoFinal) {
+          setMensajes((prev) => [
+            ...prev,
+            {
+              id: `resp-${Date.now()}`,
+              conversacion_id: idConv || '',
+              rol: 'assistant',
+              contenido: contenidoFinal,
+              citas: citasFinales,
+              modelo_llm: '',
+              fecha_creacion: new Date().toISOString(),
+            },
+          ]);
+        }
         setMensajeStreaming('');
         setCitasStreaming([]);
+        refMensajeStreaming.current = '';
+        refCitasStreaming.current = [];
       },
       alError: (error) => {
         setEnStreaming(false);
@@ -141,11 +167,12 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
           },
         ]);
         setMensajeStreaming('');
+        refMensajeStreaming.current = '';
       },
     };
 
     refCancelarStreaming.current = iniciarStreaming(idConv!, texto, callbacks);
-  }, [idConversacion, direccion]);
+  }, [idConversacion, direccion, alCambiarConversacion]);
 
   const detenerStreaming = () => {
     refCancelarStreaming.current?.();
@@ -168,8 +195,12 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
   };
 
   const manejarFeedback = async (mensajeId: string, tipo: 'positivo' | 'negativo') => {
+    if (!idConversacion) return;
     try {
-      await apiCliente.post(`/chat/mensajes/${mensajeId}/feedback`, { tipo });
+      await apiCliente.post(`/chat/conversaciones/${idConversacion}/feedback`, {
+        mensaje_id: mensajeId,
+        puntuacion: tipo === 'positivo' ? 1 : -1,
+      });
     } catch (error) {
       console.error('[CecilIA] Error al enviar feedback:', error);
     }
@@ -223,12 +254,24 @@ export function VentanaChat({ conversacionId }: PropiedadesChat) {
                   rol: 'assistant',
                   contenido: mensajeStreaming,
                   citas: citasStreaming,
-                  modelo_llm: 'claude-sonnet-4-20250514',
+                  modelo_llm: '',
                   fecha_creacion: new Date().toISOString(),
                 }}
                 direccion={direccion}
                 enStreaming={true}
               />
+            )}
+
+            {/* Indicador de que esta pensando */}
+            {enStreaming && !mensajeStreaming && (
+              <div className="flex items-center gap-2 px-4 py-3">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 rounded-full bg-[#C9A84C] animate-bounce [animation-delay:0ms]" />
+                  <span className="h-2 w-2 rounded-full bg-[#C9A84C] animate-bounce [animation-delay:150ms]" />
+                  <span className="h-2 w-2 rounded-full bg-[#C9A84C] animate-bounce [animation-delay:300ms]" />
+                </div>
+                <span className="text-xs text-[#5F6368]">CecilIA esta pensando...</span>
+              </div>
             )}
 
             <div ref={refFinal} />

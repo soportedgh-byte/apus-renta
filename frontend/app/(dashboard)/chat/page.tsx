@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { VentanaChat } from '@/components/chat/ChatWindow';
 import { SpinnerCarga } from '@/components/shared/LoadingSpinner';
@@ -12,7 +12,19 @@ function ContenidoChat() {
   const params = useSearchParams();
   const idConversacion = params.get('id') || undefined;
 
-  return <VentanaChat conversacionId={idConversacion} />;
+  const alCambiarConversacion = useCallback((id: string, titulo: string) => {
+    // Notificar al sidebar para que recargue la lista
+    if (typeof window !== 'undefined' && (window as any).__cecilia_recargar_conversaciones) {
+      (window as any).__cecilia_recargar_conversaciones();
+    }
+  }, []);
+
+  return (
+    <VentanaChat
+      conversacionId={idConversacion}
+      alCambiarConversacion={alCambiarConversacion}
+    />
+  );
 }
 
 /**
