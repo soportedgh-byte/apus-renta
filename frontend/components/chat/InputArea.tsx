@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Mic, StopCircle } from 'lucide-react';
+import { Send, Paperclip, StopCircle } from 'lucide-react';
 import type { Direccion } from '@/lib/types';
 
 interface PropiedadesEntrada {
@@ -9,14 +9,13 @@ interface PropiedadesEntrada {
   alAdjuntar?: () => void;
   direccion: Direccion;
   deshabilitado?: boolean;
-  /** Si hay un streaming en curso */
   enStreaming?: boolean;
   alDetenerStreaming?: () => void;
 }
 
 /**
  * Area de entrada de mensajes del chat
- * Incluye campo de texto expandible, boton de enviar y adjuntar
+ * Textarea expandible + boton adjuntar + boton enviar con color del rol
  */
 export function AreaEntrada({
   alEnviar,
@@ -29,7 +28,6 @@ export function AreaEntrada({
   const [texto, setTexto] = useState('');
   const refTextarea = useRef<HTMLTextAreaElement>(null);
 
-  // Ajustar altura automaticamente
   useEffect(() => {
     const textarea = refTextarea.current;
     if (textarea) {
@@ -43,7 +41,6 @@ export function AreaEntrada({
     if (!textoLimpio || deshabilitado) return;
     alEnviar(textoLimpio);
     setTexto('');
-    // Resetear altura
     if (refTextarea.current) {
       refTextarea.current.style.height = 'auto';
     }
@@ -62,11 +59,11 @@ export function AreaEntrada({
     <div className="border-t border-[#2D3748]/30 bg-[#0F1419] p-4">
       <div className="mx-auto max-w-3xl">
         <div className="relative flex items-end gap-2 rounded-xl border border-[#2D3748] bg-[#1A2332] p-2 focus-within:border-[#4A5568] transition-colors">
-          {/* Boton de adjuntar */}
+          {/* Boton adjuntar */}
           <button
             onClick={alAdjuntar}
             className="flex-shrink-0 rounded-lg p-2 text-[#5F6368] hover:text-[#9AA0A6] hover:bg-[#243044] transition-colors"
-            title="Adjuntar archivo"
+            title="Adjuntar archivo (PDF, Word, Excel)"
           >
             <Paperclip className="h-4 w-4" />
           </button>
@@ -79,15 +76,15 @@ export function AreaEntrada({
             onKeyDown={manejarTecla}
             placeholder={
               direccion === 'DES'
-                ? 'Pregunta sobre analisis sectorial, indicadores, riesgos...'
-                : 'Pregunta sobre auditorias, hallazgos, normativa, formatos...'
+                ? 'Pregunta sobre analisis sectorial, indicadores, politica publica...'
+                : 'Pregunta sobre auditorias, hallazgos, normativa, formatos CGR...'
             }
             disabled={deshabilitado || enStreaming}
             rows={1}
             className="flex-1 resize-none bg-transparent py-2 text-sm text-[#E8EAED] placeholder:text-[#5F6368] focus:outline-none disabled:opacity-50"
           />
 
-          {/* Boton de enviar o detener */}
+          {/* Boton enviar o detener */}
           {enStreaming ? (
             <button
               onClick={alDetenerStreaming}
@@ -102,7 +99,7 @@ export function AreaEntrada({
               disabled={!texto.trim() || deshabilitado}
               className="flex-shrink-0 rounded-lg p-2 transition-all disabled:opacity-30"
               style={{
-                backgroundColor: texto.trim() ? `${colorAccento}` : 'transparent',
+                backgroundColor: texto.trim() ? colorAccento : 'transparent',
                 color: texto.trim() ? 'white' : '#5F6368',
               }}
               title="Enviar mensaje (Enter)"
@@ -112,11 +109,11 @@ export function AreaEntrada({
           )}
         </div>
 
-        {/* Indicador */}
+        {/* Nota */}
         <p className="mt-2 text-center text-[10px] text-[#5F6368]">
-          CecilIA puede cometer errores. Verifique la informacion importante.
+          CecilIA puede procesar documentos PDF, Word y Excel. Los datos se procesan de forma segura.
           <span className="mx-1">|</span>
-          <kbd className="rounded bg-[#1A2332] px-1 py-0.5 text-[9px]">Shift+Enter</kbd> para nueva linea
+          <kbd className="rounded bg-[#1A2332] px-1 py-0.5 text-[9px]">Shift+Enter</kbd> nueva linea
         </p>
       </div>
     </div>

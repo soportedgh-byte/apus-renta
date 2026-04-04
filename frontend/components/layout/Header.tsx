@@ -1,24 +1,23 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import Link from 'next/link';
 import {
   Cpu,
   ChevronDown,
   LogOut,
   Settings,
   User,
-  Wifi,
   HardDrive,
   Info,
+  RefreshCw,
 } from 'lucide-react';
-import { Insignia } from '@/components/ui/badge';
 import { obtenerUsuario, obtenerDireccionActiva, cerrarSesion } from '@/lib/auth';
 import type { Direccion } from '@/lib/types';
 
 /**
  * Encabezado superior del dashboard
- * Muestra estado de conexion, modelo activo, workspace y usuario
+ * Indicador de conexion, modelo activo, workspace y perfil de usuario
  */
 export function Encabezado() {
   const [usuario, setUsuario] = useState<{ nombre_completo: string; rol: string } | null>(null);
@@ -44,7 +43,7 @@ export function Encabezado() {
           setModeloActivo(data.nombre_display || data.modelo);
         }
       } catch {
-        setModeloActivo('claude-sonnet-4-20250514');
+        setModeloActivo(null);
       }
     };
     cargarModelo();
@@ -52,65 +51,86 @@ export function Encabezado() {
 
   const nombreRol: Record<string, string> = {
     auditor: 'Auditor',
+    auditor_des: 'Auditor DES',
+    auditor_dvf: 'Auditor DVF',
+    profesional_des: 'Profesional DES',
+    profesional_dvf: 'Profesional DVF',
     director_des: 'Director DES',
     director_dvf: 'Director DVF',
-    admin: 'Administrador',
-    superadmin: 'Super Admin',
+    admin_tic: 'Administrador',
+    observatorio: 'Observatorio',
   };
 
+  const colorDireccion = direccion === 'DES' ? '#1A5276' : '#1E8449';
+  const colorDireccionLight = direccion === 'DES' ? '#2471A3' : '#27AE60';
+
   return (
-    <header className="flex h-14 items-center justify-between border-b border-[#2D3748]/30 bg-[#0F1419] px-4">
-      {/* Lado izquierdo: Estado de conexion */}
-      <div className="flex items-center gap-4">
+    <header className="flex h-12 items-center justify-between border-b border-[#2D3748]/30 bg-[#0F1419] px-4">
+      {/* Lado izquierdo: Status */}
+      <div className="flex items-center gap-3">
         {/* Indicador CecilIA conectada */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <div className="relative">
             <div className="h-2 w-2 rounded-full bg-green-400 pulso-conexion" />
           </div>
-          <span className="text-xs font-medium text-[#E8EAED]">CecilIA conectada</span>
+          <span className="text-[11px] font-medium text-[#E8EAED]">CecilIA conectada</span>
         </div>
 
-        {/* Separador */}
-        <div className="h-4 w-px bg-[#2D3748]" />
+        <div className="h-3.5 w-px bg-[#2D3748]" />
 
         {/* Modelo activo */}
-        <div className="flex items-center gap-1.5 text-xs text-[#9AA0A6]">
-          <Cpu className="h-3.5 w-3.5" />
-          <span>{modeloActivo || 'Conectando...'}</span>
+        <div className="flex items-center gap-1.5">
+          <Cpu className="h-3 w-3 text-[#5F6368]" />
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{
+              backgroundColor: '#C9A84C15',
+              color: '#D4B96A',
+              border: '1px solid #C9A84C30',
+            }}
+          >
+            {modeloActivo || 'Conectando...'}
+          </span>
         </div>
 
-        {/* Separador */}
-        <div className="h-4 w-px bg-[#2D3748]" />
+        <div className="h-3.5 w-px bg-[#2D3748] hidden md:block" />
 
-        {/* Workspace activo */}
-        <div className="flex items-center gap-1.5 text-xs text-[#9AA0A6]">
-          <HardDrive className="h-3.5 w-3.5" />
-          <span>Workspace activo</span>
+        {/* Workspace */}
+        <div className="items-center gap-1.5 text-[11px] text-[#9AA0A6] hidden md:flex">
+          <HardDrive className="h-3 w-3" />
+          <span>Workspace: Conectado</span>
         </div>
 
-        {/* Separador */}
-        <div className="h-4 w-px bg-[#2D3748]" />
+        <div className="h-3.5 w-px bg-[#2D3748] hidden md:block" />
 
-        {/* Info Circular 023 */}
-        <div className="relative group">
-          <div className="flex items-center gap-1 text-xs text-[#5F6368] cursor-help">
+        {/* Info tooltip Circular 023 */}
+        <div className="relative group hidden md:block">
+          <div className="flex items-center gap-1 text-[#5F6368] cursor-help">
             <Info className="h-3.5 w-3.5" />
           </div>
           <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-[#2D3748] bg-[#1A2332] p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
             <p className="text-[11px] text-[#9AA0A6] leading-relaxed">
-              CecilIA utiliza inteligencia artificial para asistir en el control fiscal. Todos los resultados requieren validacion humana conforme a la Circular 023 de la CGR.
+              CecilIA utiliza inteligencia artificial para asistir en el control fiscal.
+              Todos los resultados requieren validacion humana conforme a la Circular 023 de la CGR.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Lado derecho: Usuario */}
+      {/* Lado derecho: Direccion + Usuario */}
       <div className="flex items-center gap-3">
-        {/* Insignia de direccion */}
+        {/* Badge direccion */}
         {direccion && (
-          <Insignia variante={direccion === 'DES' ? 'des' : 'dvf'}>
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold hidden sm:inline-flex"
+            style={{
+              backgroundColor: `${colorDireccion}20`,
+              color: colorDireccionLight,
+              border: `1px solid ${colorDireccion}40`,
+            }}
+          >
             {direccion === 'DES' ? 'Estudios Sectoriales' : 'Vigilancia Fiscal'}
-          </Insignia>
+          </span>
         )}
 
         {/* Menu de usuario */}
@@ -119,7 +139,6 @@ export function Encabezado() {
             onClick={() => setMenuAbierto(!menuAbierto)}
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#1A2332] transition-colors"
           >
-            {/* Avatar */}
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#C9A84C] to-[#A88B3D]">
               <User className="h-3.5 w-3.5 text-[#0F1419]" />
             </div>
@@ -134,7 +153,6 @@ export function Encabezado() {
             <ChevronDown className="h-3 w-3 text-[#5F6368]" />
           </button>
 
-          {/* Dropdown del usuario */}
           {menuAbierto && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMenuAbierto(false)} />
@@ -148,6 +166,10 @@ export function Encabezado() {
                     <Settings className="h-3.5 w-3.5" />
                     Configuracion
                   </button>
+                  <Link href="/seleccion-rol" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Cambiar direccion
+                  </Link>
                   <div className="my-1 border-t border-[#2D3748]" />
                   <button
                     onClick={cerrarSesion}

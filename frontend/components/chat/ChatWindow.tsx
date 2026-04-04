@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { BurbujaMensaje } from './MessageBubble';
 import { AreaEntrada } from './InputArea';
 import { AccionesRapidas } from './QuickActions';
@@ -17,7 +18,7 @@ interface PropiedadesChat {
 
 /**
  * Ventana principal de chat
- * Contiene historial de mensajes, area de entrada y acciones rapidas
+ * Mensajes de bienvenida contextuales por direccion, streaming, feedback
  */
 export function VentanaChat({ conversacionId, alCambiarConversacion }: PropiedadesChat) {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -33,7 +34,6 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
   const refMensajeStreaming = useRef<string>('');
   const refCitasStreaming = useRef<CitaFuente[]>([]);
 
-  // Sincronizar prop con estado
   useEffect(() => {
     setIdConversacion(conversacionId);
     if (conversacionId) {
@@ -43,13 +43,11 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
     }
   }, [conversacionId]);
 
-  // Cargar direccion activa
   useEffect(() => {
     const dir = obtenerDireccionActiva();
     if (dir) setDireccion(dir);
   }, []);
 
-  // Scroll automatico al final
   useEffect(() => {
     refFinal.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensajes, mensajeStreaming]);
@@ -76,7 +74,6 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
   };
 
   const enviarMensaje = useCallback(async (texto: string) => {
-    // Crear mensaje de usuario
     const mensajeUsuario: Mensaje = {
       id: `tmp-${Date.now()}`,
       conversacion_id: idConversacion || '',
@@ -90,7 +87,6 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
     setMensajeStreaming('');
     setCitasStreaming([]);
 
-    // Si no hay conversacion, crear una nueva
     let idConv = idConversacion;
     if (!idConv) {
       try {
@@ -101,12 +97,10 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
         idConv = nueva.id;
         setIdConversacion(idConv);
 
-        // Notificar al sidebar
         if (alCambiarConversacion) {
           alCambiarConversacion(nueva.id, nueva.titulo || texto.slice(0, 50));
         }
 
-        // Actualizar URL sin recargar
         if (typeof window !== 'undefined') {
           window.history.replaceState({}, '', `/chat?id=${idConv}`);
         }
@@ -117,11 +111,9 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
       }
     }
 
-    // Reset refs
     refMensajeStreaming.current = '';
     refCitasStreaming.current = [];
 
-    // Iniciar streaming
     const callbacks: CallbacksStreaming = {
       alRecibirToken: (token) => {
         refMensajeStreaming.current += token;
@@ -153,6 +145,11 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
         setCitasStreaming([]);
         refMensajeStreaming.current = '';
         refCitasStreaming.current = [];
+
+        // Notificar sidebar
+        if (typeof window !== 'undefined' && (window as any).__cecilia_recargar_conversaciones) {
+          (window as any).__cecilia_recargar_conversaciones();
+        }
       },
       alError: (error) => {
         setEnStreaming(false);
@@ -206,6 +203,8 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
     }
   };
 
+  const colorRol = direccion === 'DES' ? '#1A5276' : '#1E8449';
+
   return (
     <div className="flex h-full flex-col">
       {/* Area de mensajes */}
@@ -215,23 +214,48 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
             <SpinnerCarga texto="Cargando conversacion..." />
           </div>
         ) : mensajes.length === 0 && !enStreaming ? (
-          /* Pantalla de bienvenida */
+          /* Pantalla de bienvenida contextual */
           <div className="flex h-full flex-col items-center justify-center px-4">
-            <div className="max-w-lg text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#C9A84C]/10 border border-[#C9A84C]/20">
-                <span className="font-titulo text-2xl text-[#C9A84C]">C</span>
+            <div className="max-w-xl text-center">
+              {/* Logo CecilIA */}
+              <div className="mx-auto mb-5 relative h-16 w-16">
+                <Image
+                  src="/logo-cecilia.png"
+                  alt="CecilIA"
+                  fill
+                  className="object-contain"
+                  sizes="64px"
+                />
               </div>
+
               <h2 className="font-titulo text-xl text-[#E8EAED] mb-2">
                 Bienvenido a CecilIA
               </h2>
-              <p className="text-sm text-[#9AA0A6] mb-1">
-                Asistente de Inteligencia Artificial para Control Fiscal
+
+              {/* Mensaje contextual por direccion */}
+              <p className="text-sm text-[#9AA0A6] leading-relaxed mb-1 max-w-md mx-auto">
+                {direccion === 'DVF'
+                  ? 'Estas en la DVF. Puedo asistirte en las 5 fases del proceso auditor: Pre-planeacion (F1-F10), Planeacion (F11-F20), Ejecucion (F21-F30), Informe y Seguimiento.'
+                  : 'Estas en la DES. Puedo asistirte en estudios sectoriales, evaluaciones de politica publica, diagnosticos y el observatorio TIC.'}
               </p>
-              <p className="text-xs text-[#5F6368]">
-                {direccion === 'DES'
-                  ? 'Modo: Estudios Sectoriales — Control Macro'
-                  : 'Modo: Vigilancia Fiscal — Control Micro'}
+
+              <p className="text-xs text-[#5F6368] mb-6">
+                {direccion === 'DVF'
+                  ? 'En que fase te encuentras?'
+                  : 'En que estas trabajando?'}
               </p>
+
+              {/* Badge CECILIA - direccion */}
+              <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-6"
+                style={{
+                  backgroundColor: `${colorRol}15`,
+                  border: `1px solid ${colorRol}30`,
+                }}
+              >
+                <span className="text-[10px] font-semibold" style={{ color: colorRol === '#1A5276' ? '#2471A3' : '#27AE60' }}>
+                  CECILIA · {direccion}
+                </span>
+              </div>
             </div>
           </div>
         ) : (
@@ -262,7 +286,7 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
               />
             )}
 
-            {/* Indicador de que esta pensando */}
+            {/* Indicador: pensando */}
             {enStreaming && !mensajeStreaming && (
               <div className="flex items-center gap-2 px-4 py-3">
                 <div className="flex gap-1">
@@ -279,7 +303,7 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
         )}
       </div>
 
-      {/* Acciones rapidas (solo si no hay mensajes) */}
+      {/* Acciones rapidas (solo en pantalla vacia) */}
       {mensajes.length === 0 && !enStreaming && (
         <AccionesRapidas direccion={direccion} alSeleccionar={enviarMensaje} />
       )}

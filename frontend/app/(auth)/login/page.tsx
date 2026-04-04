@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { User, Lock, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
@@ -8,7 +8,8 @@ import { iniciarSesion } from '@/lib/auth';
 
 /**
  * Pagina de inicio de sesion de CecilIA v2
- * Diseno oscuro profesional con acentos dorados y efecto glass
+ * Diseno institucional de alto nivel — CGR
+ * Fondo degradado oscuro, logos centrados, efecto glass profesional
  */
 export default function PaginaLogin() {
   const router = useRouter();
@@ -17,6 +18,13 @@ export default function PaginaLogin() {
   const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Fade-in suave al cargar
+    const t = setTimeout(() => setVisible(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const manejarEnvio = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,85 +46,91 @@ export default function PaginaLogin() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0F1419]">
-      {/* Fondo con gradiente sutil y particulas decorativas */}
-      <div className="absolute inset-0">
-        {/* Gradiente radial superior */}
-        <div className="absolute -top-1/4 left-1/2 h-[600px] w-[800px] -translate-x-1/2 rounded-full bg-[#C9A84C]/[0.03] blur-[100px]" />
-        {/* Gradiente radial inferior izquierdo */}
-        <div className="absolute -bottom-1/4 -left-1/4 h-[500px] w-[500px] rounded-full bg-[#1A5276]/[0.05] blur-[80px]" />
-        {/* Gradiente radial inferior derecho */}
-        <div className="absolute -bottom-1/4 -right-1/4 h-[500px] w-[500px] rounded-full bg-[#1E8449]/[0.05] blur-[80px]" />
-        {/* Patron de lineas sutiles */}
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, #0A0F1A 0%, #1A2332 50%, #0D1520 100%)' }}
+    >
+      {/* Particulas decorativas */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-1/4 left-1/2 h-[700px] w-[900px] -translate-x-1/2 rounded-full bg-[#C9A84C]/[0.025] blur-[120px]" />
+        <div className="absolute -bottom-1/3 -left-1/4 h-[500px] w-[500px] rounded-full bg-[#1A5276]/[0.04] blur-[100px]" />
+        <div className="absolute -bottom-1/3 -right-1/4 h-[500px] w-[500px] rounded-full bg-[#1E8449]/[0.04] blur-[100px]" />
+        {/* Grid sutil */}
         <div
-          className="absolute inset-0 opacity-[0.015]"
+          className="absolute inset-0 opacity-[0.012]"
           style={{
-            backgroundImage: `linear-gradient(rgba(201,168,76,0.3) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(201,168,76,0.3) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(rgba(201,168,76,0.4) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(201,168,76,0.4) 1px, transparent 1px)`,
             backgroundSize: '60px 60px',
           }}
         />
       </div>
 
-      {/* Tarjeta de login con efecto glass */}
-      <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="rounded-2xl border border-[#2D3748]/40 bg-[#1A2332]/70 shadow-2xl backdrop-blur-xl">
-          {/* Borde dorado superior sutil */}
-          <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent" />
+      {/* Contenedor con fade-in */}
+      <div
+        className={`relative z-10 w-full max-w-[440px] mx-4 transition-all duration-700 ease-out ${
+          visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
+        {/* Logo CGR centrado arriba */}
+        <div className="flex justify-center mb-8">
+          <div className="relative" style={{ width: 340, height: 91 }}>
+            <Image
+              src="/logo-cgr.png"
+              alt="Contraloria General de la Republica de Colombia"
+              fill
+              className="object-contain"
+              sizes="340px"
+              priority
+            />
+          </div>
+        </div>
 
-          <div className="p-8">
-            {/* Logos institucionales */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="relative h-14 w-14">
-                <Image
-                  src="/logo-cgr.png"
-                  alt="Contraloria General de la Republica"
-                  fill
-                  className="object-contain"
-                  sizes="56px"
-                  priority
-                />
-              </div>
-              <div className="relative h-14 w-14">
+        {/* Tarjeta de login glass */}
+        <div className="rounded-2xl border border-white/[0.06] bg-[#1A2332]/60 shadow-2xl backdrop-blur-xl">
+          {/* Linea dorada superior */}
+          <div className="absolute -top-px left-12 right-12 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/30 to-transparent" />
+
+          <div className="p-8 pb-6">
+            {/* Logo CecilIA centrado */}
+            <div className="flex justify-center mb-5">
+              <div className="relative h-[120px] w-[120px]">
                 <Image
                   src="/logo-cecilia.png"
                   alt="CecilIA"
                   fill
                   className="object-contain"
-                  sizes="56px"
+                  sizes="120px"
                   priority
                 />
               </div>
             </div>
 
-            {/* Titulo principal */}
-            <div className="text-center mb-8">
-              <h1 className="font-titulo text-3xl font-bold text-[#C9A84C] mb-2">
+            {/* Titulo */}
+            <div className="text-center mb-7">
+              <h1 className="font-titulo text-4xl font-bold text-[#C9A84C] mb-1.5" style={{ fontSize: '36px' }}>
                 CecilIA v2
               </h1>
-              <p className="text-sm text-[#9AA0A6] leading-relaxed">
-                Sistema de Inteligencia Artificial
-                <br />
-                para Control Fiscal
+              <p className="text-[#2980B9] font-interfaz" style={{ fontSize: '16px' }}>
+                Sistema de IA para Control Fiscal
               </p>
               <div className="mt-3 flex items-center justify-center">
-                <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#2D3748]" />
-                <p className="mx-3 text-[10px] uppercase tracking-[0.2em] text-[#5F6368]">
-                  Contraloria General de la Republica de Colombia
+                <div className="h-px w-10 bg-gradient-to-r from-transparent to-[#2D3748]" />
+                <p className="mx-3 text-[10px] uppercase tracking-[0.2em] text-[#556677]">
+                  Contraloria General de la Republica
                 </p>
-                <div className="h-px w-8 bg-gradient-to-l from-transparent to-[#2D3748]" />
+                <div className="h-px w-10 bg-gradient-to-l from-transparent to-[#2D3748]" />
               </div>
             </div>
 
-            {/* Formulario de login */}
+            {/* Formulario */}
             <form onSubmit={manejarEnvio} className="space-y-5">
               {/* Campo de usuario */}
               <div>
-                <label htmlFor="usuario" className="mb-1.5 block text-xs font-medium text-[#9AA0A6]">
+                <label htmlFor="usuario" className="mb-1.5 block text-[#8899AA]" style={{ fontSize: '12px' }}>
                   Usuario institucional
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5F6368]" />
+                  <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#556677]" />
                   <input
                     id="usuario"
                     type="text"
@@ -125,18 +139,23 @@ export default function PaginaLogin() {
                     placeholder="Ingrese su usuario"
                     required
                     autoComplete="username"
-                    className="w-full rounded-lg border border-[#2D3748] bg-[#0A0F14]/80 py-3 pl-10 pr-4 text-sm text-[#E8EAED] placeholder:text-[#5F6368] transition-all duration-200 focus:border-[#C9A84C] focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/50"
+                    className="w-full py-3 pl-11 pr-4 text-sm text-[#E8EAED] placeholder:text-[#556677] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/50 focus:border-[#C9A84C]/60"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '10px',
+                    }}
                   />
                 </div>
               </div>
 
               {/* Campo de contrasena */}
               <div>
-                <label htmlFor="contrasena" className="mb-1.5 block text-xs font-medium text-[#9AA0A6]">
+                <label htmlFor="contrasena" className="mb-1.5 block text-[#8899AA]" style={{ fontSize: '12px' }}>
                   Contrasena
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5F6368]" />
+                  <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#556677]" />
                   <input
                     id="contrasena"
                     type={mostrarContrasena ? 'text' : 'password'}
@@ -145,24 +164,25 @@ export default function PaginaLogin() {
                     placeholder="Ingrese su contrasena"
                     required
                     autoComplete="current-password"
-                    className="w-full rounded-lg border border-[#2D3748] bg-[#0A0F14]/80 py-3 pl-10 pr-12 text-sm text-[#E8EAED] placeholder:text-[#5F6368] transition-all duration-200 focus:border-[#C9A84C] focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/50"
+                    className="w-full py-3 pl-11 pr-12 text-sm text-[#E8EAED] placeholder:text-[#556677] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/50 focus:border-[#C9A84C]/60"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '10px',
+                    }}
                   />
                   <button
                     type="button"
                     onClick={() => setMostrarContrasena(!mostrarContrasena)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5F6368] hover:text-[#9AA0A6] transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#556677] hover:text-[#8899AA] transition-colors"
                     tabIndex={-1}
                   >
-                    {mostrarContrasena ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {mostrarContrasena ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Mensaje de error */}
+              {/* Error */}
               {error && (
                 <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
                   <AlertCircle className="h-4 w-4 flex-shrink-0 text-red-400 mt-0.5" />
@@ -170,13 +190,17 @@ export default function PaginaLogin() {
                 </div>
               )}
 
-              {/* Boton de inicio de sesion */}
+              {/* Boton dorado */}
               <button
                 type="submit"
                 disabled={cargando || !usuario || !contrasena}
-                className="group relative w-full overflow-hidden rounded-lg bg-gradient-to-r from-[#C9A84C] to-[#D4B96A] py-3 text-sm font-semibold text-[#0F1419] shadow-lg shadow-[#C9A84C]/20 transition-all duration-300 hover:from-[#D4B96A] hover:to-[#C9A84C] hover:shadow-[#C9A84C]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="group relative w-full overflow-hidden py-3 text-sm text-[#0F1419] shadow-lg shadow-[#C9A84C]/20 transition-all duration-300 hover:shadow-[#C9A84C]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  background: 'linear-gradient(135deg, #C9A84C 0%, #B8963F 100%)',
+                  borderRadius: '10px',
+                  fontWeight: 600,
+                }}
               >
-                {/* Efecto de brillo al hover */}
                 <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
                 <span className="relative flex items-center justify-center gap-2">
                   {cargando ? (
@@ -196,11 +220,16 @@ export default function PaginaLogin() {
                 </span>
               </button>
             </form>
+
+            {/* Nota AD */}
+            <p className="mt-4 text-center text-[#556677]" style={{ fontSize: '11px' }}>
+              Integracion con Active Directory CGR
+            </p>
           </div>
 
-          {/* Pie de la tarjeta — Creditos institucionales */}
-          <div className="border-t border-[#2D3748]/30 px-8 py-4 space-y-1.5">
-            <p className="text-center text-[10px] text-[#5F6368] leading-relaxed">
+          {/* Pie de la tarjeta */}
+          <div className="border-t border-white/[0.06] px-8 py-4 space-y-1.5">
+            <p className="text-center text-[10px] text-[#556677] leading-relaxed">
               Contraloria Delegada para el Sector TIC — CD-TIC-CGR
             </p>
             <p className="text-center text-[10px] italic text-[#8899AA] leading-relaxed">
@@ -213,8 +242,8 @@ export default function PaginaLogin() {
           </div>
         </div>
 
-        {/* Texto de version debajo de la tarjeta */}
-        <p className="mt-6 text-center text-[10px] text-[#5F6368]/60">
+        {/* Version */}
+        <p className="mt-6 text-center text-[10px] text-[#556677]/50">
           CecilIA v2.0 — Entorno seguro de la CGR — Todos los derechos reservados
         </p>
       </div>

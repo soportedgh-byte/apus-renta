@@ -12,7 +12,7 @@ import { estaAutenticado } from '@/lib/auth';
 
 /**
  * Layout principal del dashboard
- * Incluye sidebar, header, area de contenido y footer de privacidad
+ * Sidebar 280px + area principal con header, contenido y footer de privacidad
  * Verifica autenticacion antes de renderizar
  */
 export default function LayoutDashboard({
@@ -24,7 +24,6 @@ export default function LayoutDashboard({
   const [verificando, setVerificando] = useState(true);
 
   useEffect(() => {
-    // Verificar si el usuario esta autenticado
     if (!estaAutenticado()) {
       router.push('/login');
       return;
@@ -32,14 +31,13 @@ export default function LayoutDashboard({
     setVerificando(false);
   }, [router]);
 
-  // Mostrar pantalla de carga mientras se verifica
   if (verificando) {
     return <PantallaCarga texto="Verificando sesion..." />;
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0F1419]">
-      {/* Barra lateral */}
+      {/* Barra lateral — 280px */}
       <BarraLateral />
 
       {/* Area principal */}
@@ -54,7 +52,7 @@ export default function LayoutDashboard({
           </LimiteError>
         </main>
 
-        {/* Pie de privacidad */}
+        {/* Footer de privacidad permanente */}
         <PiePrivacidad />
       </div>
 

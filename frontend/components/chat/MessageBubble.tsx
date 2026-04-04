@@ -1,11 +1,10 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import {
   User,
-  Bot,
   BookOpen,
-  AlertTriangle,
   Copy,
   Check,
 } from 'lucide-react';
@@ -19,20 +18,21 @@ import remarkGfm from 'remark-gfm';
 interface PropiedadesBurbuja {
   mensaje: Mensaje;
   direccion: Direccion;
-  /** Si es un mensaje en streaming aun en curso */
   enStreaming?: boolean;
   alEnviarFeedback?: (mensajeId: string, tipo: 'positivo' | 'negativo') => void;
 }
 
 /**
  * Burbuja de mensaje individual en el chat
- * Coloreada segun rol: DES azul, DVF verde para usuario; oscuro para asistente
+ * Usuario a la derecha (color del rol), CecilIA a la izquierda (#1A2332)
+ * Badge CECILIA · DES/DVF en cada respuesta
  */
 export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedback }: PropiedadesBurbuja) {
   const [copiado, setCopiado] = React.useState(false);
   const esUsuario = mensaje.rol === 'user';
 
   const colorUsuario = direccion === 'DES' ? '#1A5276' : '#1E8449';
+  const colorUsuarioLight = direccion === 'DES' ? '#2471A3' : '#27AE60';
 
   const copiarContenido = () => {
     navigator.clipboard.writeText(mensaje.contenido);
@@ -41,7 +41,7 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
   };
 
   return (
-    <div className={`flex gap-3 px-4 py-4 ${esUsuario ? '' : 'bg-[#0F1419]/50'}`}>
+    <div className={`flex gap-3 px-4 py-4 ${esUsuario ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div className="flex-shrink-0">
         {esUsuario ? (
@@ -52,23 +52,36 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
             <User className="h-4 w-4" style={{ color: colorUsuario }} />
           </div>
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/20">
-            <Bot className="h-4 w-4 text-[#C9A84C]" />
+          <div className="relative h-8 w-8 rounded-lg overflow-hidden bg-[#C9A84C]/10 border border-[#C9A84C]/20 flex items-center justify-center">
+            <Image
+              src="/logo-cecilia.png"
+              alt="CecilIA"
+              width={20}
+              height={20}
+              className="object-contain"
+            />
           </div>
         )}
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 min-w-0">
-        {/* Nombre y hora */}
-        <div className="flex items-center gap-2 mb-1">
+      <div className={`flex-1 min-w-0 ${esUsuario ? 'text-right' : ''}`}>
+        {/* Nombre, badge y hora */}
+        <div className={`flex items-center gap-2 mb-1 ${esUsuario ? 'justify-end' : ''}`}>
           <span className="text-xs font-medium text-[#E8EAED]">
             {esUsuario ? 'Tu' : 'CecilIA'}
           </span>
-          {!esUsuario && mensaje.modelo_llm && (
-            <Insignia variante="gris" className="text-[9px]">
-              {mensaje.modelo_llm}
-            </Insignia>
+          {!esUsuario && (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold"
+              style={{
+                backgroundColor: `${colorUsuario}15`,
+                color: colorUsuarioLight,
+                border: `1px solid ${colorUsuario}30`,
+              }}
+            >
+              CECILIA · {direccion}
+            </span>
           )}
           <span className="text-[10px] text-[#5F6368]">
             {new Date(mensaje.fecha_creacion).toLocaleTimeString('es-CO', {
@@ -78,34 +91,45 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
           </span>
         </div>
 
-        {/* Texto del mensaje */}
-        {enStreaming ? (
-          <RespuestaStreaming texto={mensaje.contenido} enCurso={true} />
-        ) : (
-          <div className="prose prose-invert prose-sm max-w-none text-[#E8EAED] leading-relaxed
-                          prose-headings:text-[#E8EAED] prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
-                          prose-p:my-1.5 prose-li:my-0.5
-                          prose-strong:text-[#C9A84C]
-                          prose-code:text-[#7DCEA0] prose-code:bg-[#1A2332] prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                          prose-pre:bg-[#0A0F14] prose-pre:border prose-pre:border-[#2D3748]/30
-                          prose-a:text-[#2471A3] prose-a:no-underline hover:prose-a:underline
-                          prose-table:border-collapse prose-th:border prose-th:border-[#2D3748] prose-th:px-3 prose-th:py-1 prose-th:bg-[#1A2332]
-                          prose-td:border prose-td:border-[#2D3748] prose-td:px-3 prose-td:py-1
-                          prose-blockquote:border-[#C9A84C]/30 prose-blockquote:text-[#9AA0A6]
-                          prose-hr:border-[#2D3748]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {mensaje.contenido}
-            </ReactMarkdown>
-          </div>
-        )}
+        {/* Cuerpo del mensaje */}
+        <div
+          className={`rounded-xl px-4 py-3 ${
+            esUsuario
+              ? 'ml-auto max-w-[85%] text-left'
+              : 'bg-[#1A2332]/60 max-w-full'
+          }`}
+          style={esUsuario ? {
+            backgroundColor: `${colorUsuario}20`,
+            border: `1px solid ${colorUsuario}30`,
+          } : undefined}
+        >
+          {enStreaming ? (
+            <RespuestaStreaming texto={mensaje.contenido} enCurso={true} />
+          ) : (
+            <div className="prose prose-invert prose-sm max-w-none text-[#E8EAED] leading-relaxed
+                            prose-headings:text-[#E8EAED] prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2
+                            prose-p:my-1.5 prose-li:my-0.5
+                            prose-strong:text-[#C9A84C]
+                            prose-code:text-[#7DCEA0] prose-code:bg-[#0A0F14] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
+                            prose-pre:bg-[#0A0F14] prose-pre:border prose-pre:border-[#2D3748]/30 prose-pre:rounded-lg
+                            prose-a:text-[#2471A3] prose-a:no-underline hover:prose-a:underline
+                            prose-table:border-collapse prose-th:border prose-th:border-[#2D3748] prose-th:px-3 prose-th:py-1.5 prose-th:bg-[#0A0F14]
+                            prose-td:border prose-td:border-[#2D3748] prose-td:px-3 prose-td:py-1.5
+                            prose-blockquote:border-[#C9A84C]/30 prose-blockquote:text-[#9AA0A6]
+                            prose-hr:border-[#2D3748]">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {mensaje.contenido}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
 
-        {/* Disclaimer Circular 023 — Transparencia y declaracion de uso */}
+        {/* Disclaimer Circular 023 */}
         {!esUsuario && !enStreaming && (
-          <div className="mt-3 border-t border-[#2D3748]/30 pt-2">
-            <p className="text-[11px] leading-relaxed text-[#6B7B8D]">
-              Este contenido fue generado con asistencia de CecilIA (IA).
-              Requiere revision y validacion del servidor publico responsable.
-              <span className="text-[#6B7B8D]/70"> Circular 023 CGR — Principio de Transparencia.</span>
+          <div className="mt-2 px-1">
+            <p className="text-[10px] leading-relaxed text-[#5F6368]">
+              Asistido por IA — Requiere validacion humana.
+              <span className="text-[#5F6368]/60 ml-1">Circular 023 CGR</span>
             </p>
           </div>
         )}
@@ -122,9 +146,9 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
           </div>
         )}
 
-        {/* Acciones del mensaje (solo para respuestas de IA) */}
+        {/* Acciones (solo IA) */}
         {!esUsuario && !enStreaming && (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2 px-1">
             <button
               onClick={copiarContenido}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-[#5F6368] hover:text-[#9AA0A6] hover:bg-[#1A2332] transition-colors"
@@ -144,7 +168,7 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
   );
 }
 
-/** Componente individual de cita de fuente */
+/** Componente de cita de fuente */
 function CitaFuenteComponent({ cita, indice }: { cita: CitaFuente; indice: number }) {
   return (
     <div className="flex items-start gap-2 rounded-lg bg-[#0A0F14]/60 px-3 py-2 border border-[#2D3748]/30">

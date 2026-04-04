@@ -7,8 +7,8 @@ import {
   BarChart3,
   FileText,
   Scale,
-  Eye,
   TrendingUp,
+  DollarSign,
   ClipboardList,
 } from 'lucide-react';
 import type { Direccion } from '@/lib/types';
@@ -18,82 +18,98 @@ interface PropiedadesAccionesRapidas {
   alSeleccionar: (prompt: string) => void;
 }
 
-/** Acciones rapidas segun la direccion */
-const accionesDES = [
-  {
-    etiqueta: 'Analisis sectorial',
-    prompt: 'Realiza un analisis sectorial del sector TIC identificando los principales riesgos fiscales y tendencias.',
-    icono: BarChart3,
-  },
-  {
-    etiqueta: 'Indicadores macro',
-    prompt: 'Genera un resumen de los indicadores macroeconomicos relevantes para el control fiscal del sector.',
-    icono: TrendingUp,
-  },
-  {
-    etiqueta: 'Alertas sectoriales',
-    prompt: 'Identifica posibles alertas tempranas en el sector basandose en los datos disponibles.',
-    icono: AlertTriangle,
-  },
-  {
-    etiqueta: 'Estudio transversal',
-    prompt: 'Elabora un estudio transversal comparando la ejecucion presupuestal de las entidades del sector.',
-    icono: Eye,
-  },
-];
-
+/** Acciones rapidas DVF — 4 botones principales */
 const accionesDVF = [
   {
-    etiqueta: 'Redactar hallazgo',
-    prompt: 'Ayudame a redactar un hallazgo fiscal con sus 5 elementos: condicion, criterio, causa, efecto y recomendacion.',
-    icono: AlertTriangle,
+    etiqueta: 'Iniciar pre-planeacion',
+    emoji: '📝',
+    prompt: 'Ayudame a iniciar la fase de pre-planeacion de una auditoria. Necesito definir el universo auditable, identificar la entidad y los criterios de seleccion.',
+    icono: ClipboardList,
   },
   {
-    etiqueta: 'Revisar normativa',
-    prompt: 'Busca la normativa aplicable y los criterios legales relevantes para el hallazgo que estoy documentando.',
+    etiqueta: 'Calcular materialidad',
+    emoji: '🧮',
+    prompt: 'Necesito calcular la materialidad para una auditoria financiera. Explicame los metodos disponibles y ayudame a determinar el nivel adecuado.',
     icono: Scale,
   },
   {
-    etiqueta: 'Generar formato',
-    prompt: 'Necesito generar un formato de auditoria. Listame los formatos disponibles para seleccionar.',
-    icono: FileText,
+    etiqueta: 'Configurar hallazgo',
+    emoji: '🔎',
+    prompt: 'Ayudame a redactar un hallazgo fiscal con sus 5 elementos obligatorios: condicion, criterio, causa, efecto y recomendacion.',
+    icono: AlertTriangle,
   },
   {
-    etiqueta: 'Analizar documento',
-    prompt: 'Analiza el documento cargado y extrae los hallazgos potenciales con sus evidencias.',
+    etiqueta: 'Generar formato CGR',
+    emoji: '📄',
+    prompt: 'Necesito generar un formato de auditoria CGR. Listame los formatos disponibles (F1 al F30) para seleccionar el que necesito.',
+    icono: FileText,
+  },
+];
+
+/** Acciones rapidas DES — 4 botones principales */
+const accionesDES = [
+  {
+    etiqueta: 'Analisis presupuestal',
+    emoji: '📈',
+    prompt: 'Realiza un analisis de la ejecucion presupuestal del sector, identificando los principales rubros, tendencias y alertas fiscales.',
+    icono: BarChart3,
+  },
+  {
+    etiqueta: 'Seguimiento regalias',
+    emoji: '💰',
+    prompt: 'Analiza el estado del Sistema General de Regalias, identificando la ejecucion por departamento y los principales riesgos.',
+    icono: DollarSign,
+  },
+  {
+    etiqueta: 'Evaluacion politica',
+    emoji: '📋',
+    prompt: 'Ayudame a disenar una evaluacion de politica publica. Necesito definir el marco de evaluacion, la cadena de valor y los indicadores.',
     icono: FileSearch,
   },
   {
-    etiqueta: 'Plan de auditoria',
-    prompt: 'Ayudame a elaborar el plan de auditoria con objetivos, alcance, criterios y cronograma.',
-    icono: ClipboardList,
+    etiqueta: 'Alerta temprana',
+    emoji: '⚠️',
+    prompt: 'Identifica posibles alertas tempranas en el sector basandose en los indicadores disponibles y genera un borrador de pronunciamiento.',
+    icono: TrendingUp,
   },
 ];
 
 /**
- * Barra de acciones rapidas contextual segun la direccion del usuario
+ * Acciones rapidas contextuales por direccion
+ * Visibles solo cuando no hay mensajes en el chat
  */
 export function AccionesRapidas({ direccion, alSeleccionar }: PropiedadesAccionesRapidas) {
   const acciones = direccion === 'DES' ? accionesDES : accionesDVF;
-  const colorBorde = direccion === 'DES' ? 'border-[#1A5276]/30 hover:border-[#1A5276]/60' : 'border-[#1E8449]/30 hover:border-[#1E8449]/60';
-  const colorTexto = direccion === 'DES' ? 'text-[#2471A3]' : 'text-[#27AE60]';
+  const colorBorde = direccion === 'DES' ? '#1A5276' : '#1E8449';
+  const colorTexto = direccion === 'DES' ? '#2471A3' : '#27AE60';
 
   return (
-    <div className="flex flex-wrap gap-2 px-4 py-3 border-t border-[#2D3748]/30">
-      <span className="self-center text-[10px] text-[#5F6368] mr-1">Acciones rapidas:</span>
-      {acciones.map((accion) => {
-        const Icono = accion.icono;
-        return (
-          <button
-            key={accion.etiqueta}
-            onClick={() => alSeleccionar(accion.prompt)}
-            className={`flex items-center gap-1.5 rounded-lg border bg-[#1A2332]/40 px-2.5 py-1.5 text-xs transition-all ${colorBorde} hover:bg-[#1A2332]`}
-          >
-            <Icono className={`h-3 w-3 ${colorTexto}`} />
-            <span className="text-[#9AA0A6]">{accion.etiqueta}</span>
-          </button>
-        );
-      })}
+    <div className="px-4 py-3 border-t border-[#2D3748]/20">
+      <div className="mx-auto max-w-3xl">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {acciones.map((accion) => (
+            <button
+              key={accion.etiqueta}
+              onClick={() => alSeleccionar(accion.prompt)}
+              className="group flex flex-col items-center gap-2 rounded-xl border bg-[#1A2332]/30 p-3 text-center transition-all hover:bg-[#1A2332] hover:-translate-y-0.5"
+              style={{
+                borderColor: `${colorBorde}25`,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = `${colorBorde}60`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = `${colorBorde}25`;
+              }}
+            >
+              <span className="text-xl">{accion.emoji}</span>
+              <span className="text-[11px] font-medium text-[#9AA0A6] group-hover:text-[#E8EAED] transition-colors leading-tight">
+                {accion.etiqueta}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
