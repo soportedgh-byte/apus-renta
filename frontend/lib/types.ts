@@ -52,14 +52,15 @@ export type TipoConnotacion =
   | 'administrativo'
   | 'fiscal_disciplinario';
 
-/** Estado de un hallazgo en el flujo de trabajo */
+/** Estado de un hallazgo en el flujo de trabajo (workflow CGR) */
 export type EstadoHallazgo =
-  | 'borrador'
-  | 'en_revision'
-  | 'aprobado'
-  | 'rechazado'
-  | 'trasladado'
-  | 'archivado';
+  | 'BORRADOR'
+  | 'EN_REVISION'
+  | 'OBSERVACION_TRASLADADA'
+  | 'RESPUESTA_RECIBIDA'
+  | 'HALLAZGO_CONFIGURADO'
+  | 'APROBADO'
+  | 'TRASLADADO';
 
 /** Estado de una auditoria */
 export type EstadoAuditoria =
@@ -163,34 +164,81 @@ export interface Auditoria {
 
 // === HALLAZGOS ===
 
-/** Los 5 elementos de un hallazgo fiscal */
-export interface ElementosHallazgo {
+/** Connotacion de un hallazgo */
+export interface Connotacion {
+  tipo: TipoConnotacion;
+  fundamentacion_legal: string;
+  descripcion: string;
+}
+
+/** Presunto responsable de un hallazgo */
+export interface PresuntoResponsable {
+  nombre: string;
+  cargo: string;
+  periodo: string;
+  fundamentacion: string;
+}
+
+/** Evidencia de un hallazgo */
+export interface Evidencia {
+  documento_id: string;
+  descripcion: string;
+  folio: string;
+  tipo: string;
+}
+
+/** Hallazgo de auditoria — modelo alineado al backend Sprint 5 */
+export interface Hallazgo {
+  id: string;
+  auditoria_id: string;
+  numero_hallazgo: number;
+  titulo: string;
   condicion: string;
   criterio: string;
   causa: string;
   efecto: string;
   recomendacion: string;
-}
-
-/** Hallazgo de auditoria */
-export interface Hallazgo {
-  id: string;
-  auditoria_id: string;
-  titulo: string;
-  connotacion: TipoConnotacion;
+  connotaciones: Connotacion[];
+  cuantia_presunto_dano: number | null;
+  presuntos_responsables: PresuntoResponsable[];
+  evidencias: Evidencia[];
   estado: EstadoHallazgo;
-  elementos: ElementosHallazgo;
-  cuantia?: number;
-  responsables?: string[];
-  evidencias: string[];
+  fase_actual_workflow: string;
+  historial_workflow: EventoWorkflow[];
+  redaccion_validada_humano: boolean;
   generado_por_ia: boolean;
-  validado_por?: string;
-  fecha_creacion: string;
-  fecha_actualizacion: string;
-  historial_flujo: EventoFlujo[];
+  validado_por: number | null;
+  fecha_validacion: string | null;
+  created_by: number | null;
+  updated_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-/** Evento en el flujo de trabajo de un hallazgo */
+/** Evento en el workflow de un hallazgo */
+export interface EventoWorkflow {
+  usuario_id: number;
+  usuario_nombre: string;
+  accion: string;
+  estado_anterior: EstadoHallazgo;
+  estado_nuevo: EstadoHallazgo;
+  fecha: string;
+  comentarios: string;
+}
+
+/** Estadisticas de hallazgos */
+export interface EstadisticasHallazgos {
+  total_hallazgos: number;
+  por_estado: Record<string, number>;
+  por_connotacion: Record<string, number>;
+  cuantia_total_presunto_dano: number;
+  borradores: number;
+  en_revision: number;
+  aprobados: number;
+  trasladados: number;
+}
+
+/** @deprecated Usar EventoWorkflow */
 export interface EventoFlujo {
   estado_anterior: EstadoHallazgo;
   estado_nuevo: EstadoHallazgo;
