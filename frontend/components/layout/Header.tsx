@@ -10,6 +10,7 @@ import {
   User,
   Wifi,
   HardDrive,
+  Info,
 } from 'lucide-react';
 import { Insignia } from '@/components/ui/badge';
 import { obtenerUsuario, obtenerDireccionActiva, cerrarSesion } from '@/lib/auth';
@@ -85,6 +86,21 @@ export function Encabezado() {
         <div className="flex items-center gap-1.5 text-xs text-[#9AA0A6]">
           <HardDrive className="h-3.5 w-3.5" />
           <span>Workspace activo</span>
+        </div>
+
+        {/* Separador */}
+        <div className="h-4 w-px bg-[#2D3748]" />
+
+        {/* Info Circular 023 */}
+        <div className="relative group">
+          <div className="flex items-center gap-1 text-xs text-[#5F6368] cursor-help">
+            <Info className="h-3.5 w-3.5" />
+          </div>
+          <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-[#2D3748] bg-[#1A2332] p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+            <p className="text-[11px] text-[#9AA0A6] leading-relaxed">
+              CecilIA utiliza inteligencia artificial para asistir en el control fiscal. Todos los resultados requieren validacion humana conforme a la Circular 023 de la CGR.
+            </p>
+          </div>
         </div>
       </div>
 

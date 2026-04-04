@@ -99,13 +99,14 @@ export function BurbujaMensaje({ mensaje, direccion, enStreaming, alEnviarFeedba
           </div>
         )}
 
-        {/* Banner de validacion para respuestas de IA */}
+        {/* Disclaimer Circular 023 — Transparencia y declaracion de uso */}
         {!esUsuario && !enStreaming && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-[#C9A84C]/20 bg-[#C9A84C]/5 px-3 py-2">
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-[#C9A84C]" />
-            <span className="text-[10px] text-[#C9A84C]/80">
-              Requiere validacion del auditor — CecilIA es un asistente, no reemplaza el juicio profesional
-            </span>
+          <div className="mt-3 border-t border-[#2D3748]/30 pt-2">
+            <p className="text-[11px] leading-relaxed text-[#6B7B8D]">
+              Este contenido fue generado con asistencia de CecilIA (IA).
+              Requiere revision y validacion del servidor publico responsable.
+              <span className="text-[#6B7B8D]/70"> Circular 023 CGR — Principio de Transparencia.</span>
+            </p>
           </div>
         )}
 

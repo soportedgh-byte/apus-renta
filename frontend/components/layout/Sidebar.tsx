@@ -22,6 +22,8 @@ import {
   Trash2,
   X,
   Check,
+  Info,
+  BookOpen,
 } from 'lucide-react';
 import { Pestanas, ListaPestanas, DisparadorPestana, ContenidoPestana } from '@/components/ui/tabs';
 import { Insignia } from '@/components/ui/badge';
@@ -216,6 +218,8 @@ export function BarraLateral() {
     { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: direccionActiva === 'DES' },
     { href: '/analytics', icono: BarChart3, etiqueta: 'Analitica', visible: esDirector() || esAdmin() },
     { href: '/admin', icono: Shield, etiqueta: 'Administracion', visible: esAdmin() },
+    { href: '/guia-uso', icono: BookOpen, etiqueta: 'Guia de uso', visible: true },
+    { href: '/acerca', icono: Info, etiqueta: 'Acerca de CecilIA', visible: true },
   ];
 
   return (

@@ -198,10 +198,17 @@ export default function PaginaLogin() {
             </form>
           </div>
 
-          {/* Pie de la tarjeta */}
-          <div className="border-t border-[#2D3748]/30 px-8 py-4">
+          {/* Pie de la tarjeta — Creditos institucionales */}
+          <div className="border-t border-[#2D3748]/30 px-8 py-4 space-y-1.5">
             <p className="text-center text-[10px] text-[#5F6368] leading-relaxed">
               Contraloria Delegada para el Sector TIC — CD-TIC-CGR
+            </p>
+            <p className="text-center text-[10px] italic text-[#8899AA] leading-relaxed">
+              Proyecto concebido e impulsado bajo la direccion del
+              <br />
+              Dr. Omar Javier Contreras Socarras
+              <br />
+              Contralor Delegado para el Sector TIC
             </p>
           </div>
         </div>

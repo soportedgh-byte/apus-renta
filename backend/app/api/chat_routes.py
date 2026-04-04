@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -32,6 +33,47 @@ from app.services.chat_service import obtener_chat_service
 from app.llm import info_modelo_activo
 
 logger = logging.getLogger("cecilia.api.chat")
+
+
+# -- Filtro de datos personales (Circular 023 — Principio de Privacidad) --
+
+# Patrones de datos personales colombianos
+_PATRON_CEDULA = re.compile(r"\b\d{6,10}\b")  # Cedulas de ciudadania
+_PATRON_NIT = re.compile(r"\b\d{9}-\d\b")  # NIT empresarial
+_PATRON_TARJETA = re.compile(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b")  # Tarjetas
+_PATRON_EMAIL_PERSONAL = re.compile(
+    r"\b[a-zA-Z0-9._%+-]+@(gmail|hotmail|yahoo|outlook|live)\.(com|co|es|net)\b",
+    re.IGNORECASE,
+)
+_PATRON_TELEFONO = re.compile(r"\b(3\d{9}|60[1-8]\d{7})\b")  # Celulares y fijos colombianos
+
+_ADVERTENCIA_DATOS_PERSONALES = (
+    "⚠️ ADVERTENCIA DE PRIVACIDAD — Se detectaron posibles datos personales en su mensaje "
+    "(numeros de identificacion, NIT u otros). Conforme a la Circular 023 de la CGR "
+    "(Principio de Privacidad) y la Ley 1581 de 2012, se recomienda NO incluir datos "
+    "personales sensibles en las consultas al sistema de IA. "
+    "Los datos detectados han sido procesados pero no seran almacenados en logs de trazabilidad."
+)
+
+
+def _detectar_datos_personales(texto: str) -> dict[str, bool]:
+    """Detecta patrones de datos personales en el texto del usuario.
+
+    Retorna un diccionario indicando que tipos de datos fueron detectados.
+    Conforme a Circular 023 CGR — Principio de Privacidad y Ley 1581/2012.
+    """
+    return {
+        "cedula": bool(_PATRON_CEDULA.search(texto)),
+        "nit": bool(_PATRON_NIT.search(texto)),
+        "tarjeta_credito": bool(_PATRON_TARJETA.search(texto)),
+        "email_personal": bool(_PATRON_EMAIL_PERSONAL.search(texto)),
+        "telefono": bool(_PATRON_TELEFONO.search(texto)),
+    }
+
+
+def _contiene_datos_personales(deteccion: dict[str, bool]) -> bool:
+    """Verifica si alguno de los patrones fue detectado."""
+    return any(deteccion.values())
 
 
 # -- Dependencia de base de datos --
@@ -390,6 +432,17 @@ async def enviar_mensaje(
         db.add(conv)
         await db.flush()
 
+    # Filtro de datos personales (Circular 023 — Principio de Privacidad)
+    deteccion_datos = _detectar_datos_personales(solicitud.mensaje)
+    alerta_privacidad = _contiene_datos_personales(deteccion_datos)
+    if alerta_privacidad:
+        tipos_detectados = [k for k, v in deteccion_datos.items() if v]
+        logger.warning(
+            "Datos personales detectados en mensaje de usuario_id=%d, "
+            "conversacion=%s, tipos=%s — Circular 023 Principio de Privacidad",
+            usuario_id, conversacion_id[:8], tipos_detectados,
+        )
+
     # Guardar mensaje del usuario
     msg_usuario_id = str(uuid.uuid4())
     msg_usuario = Mensaje(
@@ -428,6 +481,17 @@ async def enviar_mensaje(
                     "marca_temporal": datetime.now(timezone.utc).isoformat(),
                 }),
             }
+
+            # Alerta de privacidad si se detectaron datos personales
+            if alerta_privacidad:
+                yield {
+                    "event": "advertencia_privacidad",
+                    "data": json.dumps({
+                        "tipo": "advertencia_privacidad",
+                        "mensaje": _ADVERTENCIA_DATOS_PERSONALES,
+                        "tipos_detectados": [k for k, v in deteccion_datos.items() if v],
+                    }, ensure_ascii=False),
+                }
 
             # Ejecutar grafo con historial
             mensaje_con_contexto = solicitud.mensaje

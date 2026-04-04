@@ -7,6 +7,7 @@ import { Encabezado } from '@/components/layout/Header';
 import { PiePrivacidad } from '@/components/layout/Footer';
 import { PantallaCarga } from '@/components/shared/LoadingSpinner';
 import { LimiteError } from '@/components/shared/ErrorBoundary';
+import { ModalResponsabilidad } from '@/components/shared/ResponsibilityModal';
 import { estaAutenticado } from '@/lib/auth';
 
 /**
@@ -56,6 +57,9 @@ export default function LayoutDashboard({
         {/* Pie de privacidad */}
         <PiePrivacidad />
       </div>
+
+      {/* Modal de aceptacion de responsabilidad — Circular 023 */}
+      <ModalResponsabilidad />
     </div>
   );
 }
