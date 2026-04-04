@@ -35,6 +35,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "auditoria_ver",
             "proyecto_crear",
             "proyecto_editar",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -51,6 +52,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "hallazgos",
             "formatos",
             "auditoria",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Consultar normativa vigente",
@@ -75,6 +77,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "auditoria_ver",
             "proyecto_crear",
             "proyecto_editar",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -91,6 +94,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "hallazgos",
             "formatos",
             "auditoria",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Consultar normativa vigente",
@@ -109,6 +113,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "hallazgos_ver",
             "formatos_ver",
             "auditoria_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -121,6 +126,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "documentos",
             "hallazgos",
             "auditoria",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Consultar normativa vigente",
@@ -137,6 +143,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "hallazgos_ver",
             "formatos_ver",
             "auditoria_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -149,6 +156,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "documentos",
             "hallazgos",
             "auditoria",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Consultar normativa vigente",
@@ -177,6 +185,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "proyecto_editar",
             "analitica_ver",
             "observatorio_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -195,6 +204,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "auditoria",
             "analitica",
             "observatorio",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Ver resumen de auditorias DES",
@@ -225,6 +235,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "proyecto_editar",
             "analitica_ver",
             "observatorio_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -243,6 +254,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "auditoria",
             "analitica",
             "observatorio",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Ver resumen de auditorias DVF",
@@ -274,6 +286,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "usuarios_desactivar",
             "sistema_configurar",
             "logs_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -294,6 +307,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "observatorio",
             "administracion",
             "logs",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Ver estado del sistema",
@@ -313,6 +327,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "observatorio_alertas_crear",
             "observatorio_alertas_editar",
             "analitica_ver",
+            "capacitacion",
         ],
         "puede_ver": [
             "normativo",
@@ -325,6 +340,7 @@ ROLES: dict[str, dict[str, Any]] = {
             "documentos",
             "observatorio",
             "analitica",
+            "capacitacion",
         ],
         "acciones_rapidas": [
             "Ver alertas activas",
