@@ -30,6 +30,7 @@ class RolUsuario(str, enum.Enum):
     DIRECTOR_DVF = "director_dvf"
     ADMIN_TIC = "admin_tic"
     OBSERVATORIO = "observatorio"
+    APRENDIZ = "aprendiz"
 
 
 class DireccionUsuario(str, enum.Enum):
@@ -98,7 +99,10 @@ class Usuario(Base):
         "Documento", back_populates="usuario", lazy="noload",
     )
     hallazgos: Mapped[list["Hallazgo"]] = relationship(  # type: ignore[name-defined]
-        "Hallazgo", back_populates="usuario", lazy="noload",
+        "Hallazgo",
+        foreign_keys="[Hallazgo.created_by]",
+        back_populates="creador",
+        lazy="noload",
     )
 
     def __repr__(self) -> str:

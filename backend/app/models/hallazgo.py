@@ -134,6 +134,14 @@ class Hallazgo(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
     )
 
+    # ── Relaciones ──────────────────────────────────────────────────────────
+    creador: Mapped[Optional["Usuario"]] = relationship(  # type: ignore[name-defined]
+        "Usuario",
+        foreign_keys=[created_by],
+        back_populates="hallazgos",
+        lazy="noload",
+    )
+
     # ── Metadata ────────────────────────────────────────────────────────────
     metadata_extra: Mapped[Optional[dict[str, Any]]] = mapped_column(
         JSONB, nullable=True,
