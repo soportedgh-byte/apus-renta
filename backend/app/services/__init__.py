@@ -15,6 +15,7 @@ from app.services.audit_service import AuditService
 from app.services.hallazgo_service import HallazgoService
 from app.services.memoria_service import MemoriaService
 from app.services.trazabilidad_service import TrazabilidadService
+from app.services.capacitacion_service import CapacitacionService
 
 __all__: list[str] = [
     "ChatService",
@@ -23,4 +24,5 @@ __all__: list[str] = [
     "HallazgoService",
     "MemoriaService",
     "TrazabilidadService",
+    "CapacitacionService",
 ]

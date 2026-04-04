@@ -344,3 +344,89 @@ export interface EventoSSE {
   cita?: CitaFuente;
   error?: string;
 }
+
+// === CAPACITACION / TUTOR ===
+
+/** Ruta de aprendizaje */
+export interface RutaAprendizaje {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  icono: string;
+  color: string;
+  direccion: 'DES' | 'DVF' | 'TODOS';
+  orden: number;
+  activa: boolean;
+  total_lecciones: number;
+  created_at: string;
+}
+
+/** Leccion individual */
+export interface Leccion {
+  id: string;
+  ruta_id: string;
+  numero: number;
+  titulo: string;
+  descripcion: string;
+  contenido_md: string;
+  duracion_minutos: number;
+  orden: number;
+  created_at: string;
+}
+
+/** Progreso de un usuario en una leccion */
+export interface ProgresoUsuario {
+  id: string;
+  usuario_id: number;
+  ruta_id: string;
+  leccion_id: string;
+  completada: boolean;
+  fecha_completada: string | null;
+  puntaje_quiz: number | null;
+  created_at: string;
+}
+
+/** Resultado de un quiz */
+export interface QuizResultado {
+  id: string;
+  usuario_id: number;
+  leccion_id: string | null;
+  ruta_id: string;
+  puntaje: number;
+  total_preguntas: number;
+  respuestas_json: Array<{
+    pregunta: string;
+    respuesta_usuario: string;
+    respuesta_correcta: string;
+    correcta: boolean;
+  }>;
+  aprobado: boolean;
+  created_at: string;
+}
+
+/** Resumen de progreso para una ruta */
+export interface ResumenProgresoRuta {
+  ruta_id: string;
+  ruta_nombre: string;
+  total_lecciones: number;
+  completadas: number;
+  porcentaje: number;
+  quizzes_aprobados: number;
+}
+
+/** Metricas globales de capacitacion */
+export interface MetricasCapacitacion {
+  total_aprendices: number;
+  total_lecciones_completadas: number;
+  total_quizzes_realizados: number;
+  promedio_puntaje: number;
+  tasa_aprobacion: number;
+  rutas_activas: number;
+  por_ruta: Array<{
+    ruta_id: string;
+    ruta_nombre: string;
+    aprendices: number;
+    promedio_avance: number;
+    promedio_quiz: number;
+  }>;
+}

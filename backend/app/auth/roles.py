@@ -334,4 +334,29 @@ ROLES: dict[str, dict[str, Any]] = {
             "Generar reporte observatorio",
         ],
     },
+    "aprendiz": {
+        "descripcion": "Funcionario en proceso de induccion/capacitacion",
+        "permisos": [
+            "chat_tutor",
+            "capacitacion",
+            "biblioteca",
+            "quizzes",
+        ],
+        "puede_ver": [
+            "DES",
+            "DVF",
+        ],
+        "modulos": [
+            "capacitacion",
+            "biblioteca",
+            "simulador",
+        ],
+        "acciones_rapidas": [
+            "Iniciar ruta de aprendizaje",
+            "Continuar leccion pendiente",
+            "Hacer quiz de evaluacion",
+            "Consultar glosario de terminos",
+            "Simulacion de auditoria",
+        ],
+    },
 }

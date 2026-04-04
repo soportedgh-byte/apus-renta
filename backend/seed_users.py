@@ -136,6 +136,20 @@ USUARIOS = [
         "dir": None,
         "pwd": "Observador_2026!",
     },
+    {
+        "usuario": "aprendiz.dvf",
+        "nombre": "Aprendiz DVF Pruebas",
+        "rol": "aprendiz",
+        "dir": "DVF",
+        "pwd": "Aprendiz_DVF_2026!",
+    },
+    {
+        "usuario": "aprendiz.des",
+        "nombre": "Aprendiz DES Pruebas",
+        "rol": "aprendiz",
+        "dir": "DES",
+        "pwd": "Aprendiz_DES_2026!",
+    },
 ]
 
 

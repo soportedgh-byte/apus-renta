@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { Pestanas, ListaPestanas, DisparadorPestana, ContenidoPestana } from '@/components/ui/tabs';
 import { Insignia } from '@/components/ui/badge';
-import { obtenerUsuario, obtenerDireccionActiva, establecerDireccionActiva, esAdmin, esDirector } from '@/lib/auth';
+import { obtenerUsuario, obtenerDireccionActiva, establecerDireccionActiva, esAdmin, esDirector, esAprendiz } from '@/lib/auth';
 import { apiCliente } from '@/lib/api';
 import type { Direccion, ResumenConversacion } from '@/lib/types';
 
@@ -235,15 +235,16 @@ export function BarraLateral() {
   const grupos = agruparPorFecha(conversaciones);
 
   const enlacesNavegacion = [
-    { href: '/chat', icono: MessageSquare, etiqueta: 'Chat IA', visible: true },
-    { href: '/workspace', icono: FolderOpen, etiqueta: 'Workspace', visible: true },
-    { href: '/auditorias', icono: ClipboardList, etiqueta: 'Auditorias', visible: true },
-    { href: '/hallazgos', icono: AlertTriangle, etiqueta: 'Hallazgos', visible: true },
-    { href: '/formatos', icono: FileCheck, etiqueta: 'Formatos', visible: true },
-    { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: direccionActiva === 'DES' },
+    { href: '/chat', icono: MessageSquare, etiqueta: 'Chat IA', visible: !esAprendiz() },
+    { href: '/capacitacion', icono: BookOpen, etiqueta: 'Capacitacion', visible: true },
+    { href: '/workspace', icono: FolderOpen, etiqueta: 'Workspace', visible: !esAprendiz() },
+    { href: '/auditorias', icono: ClipboardList, etiqueta: 'Auditorias', visible: !esAprendiz() },
+    { href: '/hallazgos', icono: AlertTriangle, etiqueta: 'Hallazgos', visible: !esAprendiz() },
+    { href: '/formatos', icono: FileCheck, etiqueta: 'Formatos', visible: !esAprendiz() },
+    { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: direccionActiva === 'DES' && !esAprendiz() },
     { href: '/analytics', icono: BarChart3, etiqueta: 'Analitica', visible: esDirector() || esAdmin() },
     { href: '/admin', icono: Shield, etiqueta: 'Administracion', visible: esAdmin() },
-    { href: '/guia-uso', icono: BookOpen, etiqueta: 'Guia de uso', visible: true },
+    { href: '/guia-uso', icono: FileText, etiqueta: 'Guia de uso', visible: true },
     { href: '/acerca', icono: Info, etiqueta: 'Acerca de CecilIA', visible: true },
   ];
 

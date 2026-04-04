@@ -28,6 +28,7 @@ from app.agents.transversales.analista_financiero import ejecutar_analisis_finan
 from app.agents.transversales.normativo_juridico import ejecutar_analisis_normativo
 from app.agents.transversales.generador_formatos import ejecutar_generador_formatos
 from app.agents.transversales.detector_fraude import ejecutar_detector_fraude
+from app.agents.transversales.tutor import ejecutar_tutor
 
 logger = logging.getLogger("cecilia.agents.graph")
 
@@ -98,6 +99,10 @@ def _nodo_fraude(state: AuditState) -> AuditState:
     return ejecutar_detector_fraude(state, llm=_obtener_llm())
 
 
+def _nodo_tutor(state: AuditState) -> AuditState:
+    return ejecutar_tutor(state, llm=_obtener_llm())
+
+
 # ---------------------------------------------------------------------------
 # Construccion del grafo
 # ---------------------------------------------------------------------------
@@ -121,6 +126,7 @@ def construir_grafo() -> StateGraph:
     grafo.add_node("normativo_juridico", _nodo_normativo)
     grafo.add_node("generador_formatos", _nodo_formatos)
     grafo.add_node("detector_fraude", _nodo_fraude)
+    grafo.add_node("tutor", _nodo_tutor)
 
     # Punto de entrada
     grafo.set_entry_point("supervisor")
@@ -136,6 +142,7 @@ def construir_grafo() -> StateGraph:
         "normativo_juridico": "normativo_juridico",
         "generador_formatos": "generador_formatos",
         "detector_fraude": "detector_fraude",
+        "tutor": "tutor",
     }
 
     grafo.add_conditional_edges("supervisor", _decidir_ruta, destinos)

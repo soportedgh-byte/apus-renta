@@ -136,6 +136,7 @@ _RUTAS: list[tuple[str, str, str]] = [
     ("app.api.analytics_routes", "/api/analytics", "Analitica"),
     ("app.api.admin_routes", "/api/admin", "Administracion"),
     ("app.api.agent_ws", "/api/ws", "WebSocket Agente"),
+    ("app.api.capacitacion_routes", "/api/capacitacion", "Capacitacion"),
 ]
 
 for _modulo, _prefijo, _tag in _RUTAS:

@@ -21,6 +21,12 @@ from app.models.proyecto_auditoria import ProyectoAuditoria
 from app.models.alerta import Alerta
 from app.models.formato_generado import FormatoGenerado
 from app.models.log_trazabilidad import LogTrazabilidad
+from app.models.capacitacion import (
+    RutaAprendizaje,
+    Leccion,
+    ProgresoUsuario,
+    QuizResultado,
+)
 
 __all__: list[str] = [
     "Base",
@@ -34,4 +40,8 @@ __all__: list[str] = [
     "Alerta",
     "FormatoGenerado",
     "LogTrazabilidad",
+    "RutaAprendizaje",
+    "Leccion",
+    "ProgresoUsuario",
+    "QuizResultado",
 ]

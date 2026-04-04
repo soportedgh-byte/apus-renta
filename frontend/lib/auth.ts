@@ -125,3 +125,12 @@ export function esDirector(): boolean {
   if (!usuario) return false;
   return usuario.rol === 'director_des' || usuario.rol === 'director_dvf';
 }
+
+/**
+ * Verifica si el usuario es aprendiz (rol de capacitacion)
+ */
+export function esAprendiz(): boolean {
+  const usuario = obtenerUsuario();
+  if (!usuario) return false;
+  return usuario.rol === 'aprendiz';
+}

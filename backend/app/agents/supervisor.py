@@ -38,6 +38,7 @@ NODOS_TRANSVERSALES: set[str] = {
     "normativo_juridico",
     "generador_formatos",
     "detector_fraude",
+    "tutor",
 }
 
 RUTA_PROMPT = Path(__file__).parent / "prompts" / "supervisor.txt"
@@ -90,7 +91,13 @@ def enrutar_consulta(state: AuditState, llm: BaseChatModel | None = None) -> str
     """
     fase_actual: str = state.get("fase_actual", "planeacion")
     direccion: str = state.get("direccion", "DES")
+    rol: str = state.get("rol", "")
     mensajes: list = state.get("messages", [])
+
+    # ── APRENDIZ siempre va al tutor ─────────────────────────────────────
+    if rol.lower() == "aprendiz":
+        logger.info("Rol APRENDIZ detectado — enrutando a tutor")
+        return "tutor"
 
     if not mensajes:
         logger.info("Sin mensajes — enrutando a fase actual: %s", fase_actual)
@@ -136,6 +143,8 @@ def enrutar_consulta(state: AuditState, llm: BaseChatModel | None = None) -> str
         return "generador_formatos"
     if any(p in texto_lower for p in ["fraude", "benford", "anomalía", "irregular"]):
         return "detector_fraude"
+    if any(p in texto_lower for p in ["capacitacion", "capacitación", "tutor", "aprendiz", "leccion", "lección", "ruta de aprendizaje", "quiz"]):
+        return "tutor"
 
     # ------------------------------------------------------------------
     # Clasificación con LLM (si está disponible)
