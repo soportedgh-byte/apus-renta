@@ -265,28 +265,51 @@ ROLES: dict[str, dict[str, Any]] = {
         ],
     },
     "admin_tic": {
-        "descripcion": "Administrador TIC del Centro de Datos — CD-TIC-CGR",
+        "descripcion": "Administrador TIC del Centro de Datos — CD-TIC-CGR — Acceso total",
         "permisos": [
+            # ── Chat y RAG ──
             "chat",
+            "chat_tutor",
             "rag_consultar",
             "rag_administrar",
+            # ── Documentos ──
             "documentos_cargar",
             "documentos_ver",
             "documentos_eliminar",
+            # ── Hallazgos (acceso completo) ──
+            "hallazgos_crear",
+            "hallazgos_editar",
             "hallazgos_ver",
+            "hallazgos_aprobar",
+            # ── Formatos (acceso completo) ──
+            "formatos_generar",
             "formatos_ver",
+            "formatos_aprobar",
+            # ── Auditorias y proyectos (acceso completo) ──
             "auditoria_ver",
+            "auditoria_crear",
+            "auditoria_editar",
+            "proyecto_crear",
+            "proyecto_editar",
+            # ── Analitica ──
             "analitica_ver",
             "analitica_administrar",
+            # ── Observatorio ──
             "observatorio_ver",
             "observatorio_administrar",
+            "observatorio_alertas_crear",
+            "observatorio_alertas_editar",
+            # ── Usuarios y sistema ──
             "usuarios_ver",
             "usuarios_crear",
             "usuarios_editar",
             "usuarios_desactivar",
             "sistema_configurar",
             "logs_ver",
+            # ── Capacitacion ──
             "capacitacion",
+            "biblioteca",
+            "quizzes",
         ],
         "puede_ver": [
             "normativo",
@@ -296,6 +319,8 @@ ROLES: dict[str, dict[str, Any]] = {
             "estadistico",
             "jurisprudencial",
             "auditoria",
+            "DES",
+            "DVF",
         ],
         "modulos": [
             "chat",
@@ -308,6 +333,8 @@ ROLES: dict[str, dict[str, Any]] = {
             "administracion",
             "logs",
             "capacitacion",
+            "biblioteca",
+            "simulador",
         ],
         "acciones_rapidas": [
             "Ver estado del sistema",
@@ -315,6 +342,9 @@ ROLES: dict[str, dict[str, Any]] = {
             "Gestionar usuarios",
             "Ver logs de trazabilidad",
             "Configurar modelos LLM",
+            "Aprobar hallazgos pendientes",
+            "Generar formato CGR",
+            "Iniciar ruta de aprendizaje",
         ],
     },
     "observatorio": {

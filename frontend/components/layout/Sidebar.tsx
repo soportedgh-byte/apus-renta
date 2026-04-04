@@ -234,16 +234,18 @@ export function BarraLateral() {
   const colorDireccionLight = direccionActiva === 'DES' ? '#2471A3' : '#27AE60';
   const grupos = agruparPorFecha(conversaciones);
 
+  const esAdministrador = esAdmin();
+
   const enlacesNavegacion = [
-    { href: '/chat', icono: MessageSquare, etiqueta: 'Chat IA', visible: !esAprendiz() },
+    { href: '/chat', icono: MessageSquare, etiqueta: 'Chat IA', visible: esAdministrador || !esAprendiz() },
     { href: '/capacitacion', icono: BookOpen, etiqueta: 'Capacitacion', visible: true },
-    { href: '/workspace', icono: FolderOpen, etiqueta: 'Workspace', visible: !esAprendiz() },
-    { href: '/auditorias', icono: ClipboardList, etiqueta: 'Auditorias', visible: !esAprendiz() },
-    { href: '/hallazgos', icono: AlertTriangle, etiqueta: 'Hallazgos', visible: !esAprendiz() },
-    { href: '/formatos', icono: FileCheck, etiqueta: 'Formatos', visible: !esAprendiz() },
-    { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: direccionActiva === 'DES' && !esAprendiz() },
-    { href: '/analytics', icono: BarChart3, etiqueta: 'Analitica', visible: esDirector() || esAdmin() },
-    { href: '/admin', icono: Shield, etiqueta: 'Administracion', visible: esAdmin() },
+    { href: '/workspace', icono: FolderOpen, etiqueta: 'Workspace', visible: esAdministrador || !esAprendiz() },
+    { href: '/auditorias', icono: ClipboardList, etiqueta: 'Auditorias', visible: esAdministrador || !esAprendiz() },
+    { href: '/hallazgos', icono: AlertTriangle, etiqueta: 'Hallazgos', visible: esAdministrador || !esAprendiz() },
+    { href: '/formatos', icono: FileCheck, etiqueta: 'Formatos', visible: esAdministrador || !esAprendiz() },
+    { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: esAdministrador || (direccionActiva === 'DES' && !esAprendiz()) },
+    { href: '/analytics', icono: BarChart3, etiqueta: 'Analitica', visible: esAdministrador || esDirector() },
+    { href: '/admin', icono: Shield, etiqueta: 'Administracion', visible: esAdministrador },
     { href: '/guia-uso', icono: FileText, etiqueta: 'Guia de uso', visible: true },
     { href: '/acerca', icono: Info, etiqueta: 'Acerca de CecilIA', visible: true },
   ];
