@@ -1,17 +1,18 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: app/api/format_routes.py
-Propósito: Endpoints de generación de formatos CGR (1-30) — generación,
-           listado, consulta y descarga en formato DOCX
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Endpoints de generacion de formatos CGR (1-30) en DOCX profesional.
+           Generacion, descarga, previsualizacion, catalogo y historial.
+Sprint: 4
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
 from __future__ import annotations
 
+import io
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -20,68 +21,38 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.formatos.registro import (
+    CATALOGO_FORMATOS,
+    FORMATOS_IMPLEMENTADOS,
+    obtener_generador,
+)
 from app.main import obtener_sesion_db
+from app.models.formato_generado import FormatoGenerado
 
 logger = logging.getLogger("cecilia.api.formatos")
 
 enrutador = APIRouter()
 
 
-# ── Catálogo de formatos CGR ─────────────────────────────────────────────────
-
-CATALOGO_FORMATOS: dict[int, str] = {
-    1: "Plan de Vigilancia y Control Fiscal",
-    2: "Programa de Auditoría",
-    3: "Memorando de Asignación",
-    4: "Carta de Representación",
-    5: "Comunicación de Inicio de Auditoría",
-    6: "Solicitud de Información",
-    7: "Acta de Visita",
-    8: "Cédula de Hallazgo",
-    9: "Traslado de Hallazgo",
-    10: "Informe Preliminar",
-    11: "Respuesta a Contradicción",
-    12: "Informe Final de Auditoría",
-    13: "Dictamen de Estados Financieros",
-    14: "Concepto sobre la Gestión Fiscal",
-    15: "Plan de Mejoramiento",
-    16: "Seguimiento Plan de Mejoramiento",
-    17: "Memorando de Control Interno",
-    18: "Evaluación de Riesgos",
-    19: "Materialidad y Error Tolerable",
-    20: "Matriz de Muestreo",
-    21: "Papeles de Trabajo - Resumen",
-    22: "Control de Cambios de Auditoría",
-    23: "Acta de Cierre de Auditoría",
-    24: "Certificación de Entrega de Informe",
-    25: "Requerimiento de Información Adicional",
-    26: "Auto de Apertura de Proceso",
-    27: "Notificación de Hallazgo Fiscal",
-    28: "Informe de Gestión de Resultados",
-    29: "Indicadores de Gestión Fiscal",
-    30: "Consolidado de Hallazgos por Entidad",
-}
-
-
 # ── Esquemas ─────────────────────────────────────────────────────────────────
 
 
 class SolicitudGenerarFormato(BaseModel):
-    """Esquema para solicitar la generación de un formato CGR."""
+    """Esquema para solicitar la generacion de un formato CGR."""
 
-    numero_formato: int = Field(..., ge=1, le=30, description="Número del formato CGR (1-30)")
-    auditoria_id: str = Field(..., description="ID de la auditoría asociada")
+    numero_formato: int = Field(..., ge=1, le=30, description="Numero del formato CGR (1-30)")
+    auditoria_id: str = Field(default="", description="ID de la auditoria asociada")
     parametros: dict[str, Any] = Field(
         default_factory=dict,
-        description="Parámetros específicos del formato (varían según tipo)",
+        description="Parametros especificos del formato (varian segun tipo)",
     )
     generar_con_ia: bool = Field(
         default=True,
-        description="Si True, CecilIA genera contenido sugerido. Si False, solo estructura vacía.",
+        description="Si True, CecilIA genera contenido sugerido. Si False, solo estructura vacia.",
     )
-    idioma: str = Field(default="es-CO", description="Idioma del formato")
 
 
 class RespuestaFormato(BaseModel):
@@ -91,18 +62,38 @@ class RespuestaFormato(BaseModel):
     numero_formato: int
     nombre_formato: str
     auditoria_id: str
-    estado: str  # generando | completado | error
+    estado: str
     generado_con_ia: bool
     ruta_archivo: Optional[str] = None
     creado_en: datetime
     usuario_id: int
 
 
+class InfoPlantilla(BaseModel):
+    """Informacion de una plantilla de formato."""
+
+    numero: int
+    nombre: str
+    fase: str
+    implementado: bool
+
+
+class RespuestaHistorial(BaseModel):
+    """Respuesta de historial de formatos."""
+
+    id: str
+    numero_formato: int
+    nombre_formato: str
+    estado: str
+    generado_con_ia: bool
+    creado_en: datetime
+
+
 # ── Dependencia temporal de usuario autenticado ──────────────────────────────
 
 
 async def _obtener_usuario_actual_id() -> int:
-    """Dependencia temporal — será reemplazada por auth real."""
+    """Dependencia temporal — sera reemplazada por auth real."""
     return 1
 
 
@@ -111,53 +102,213 @@ async def _obtener_usuario_actual_id() -> int:
 
 @enrutador.post(
     "/generar",
-    response_model=RespuestaFormato,
-    status_code=status.HTTP_201_CREATED,
-    summary="Generar formato CGR",
-    description="Genera un formato CGR (1-30) a partir de los datos de la auditoría.",
+    status_code=status.HTTP_200_OK,
+    summary="Generar formato CGR en DOCX",
+    description="Genera un formato CGR (1-30) como documento DOCX profesional con encabezado institucional.",
 )
 async def generar_formato(
     solicitud: SolicitudGenerarFormato,
     db: AsyncSession = Depends(obtener_sesion_db),
     usuario_id: int = Depends(_obtener_usuario_actual_id),
-) -> dict[str, Any]:
-    """Genera un formato CGR validando el número y los parámetros.
+) -> StreamingResponse:
+    """Genera un formato CGR y lo retorna como stream DOCX.
 
     El proceso incluye:
-    1. Validar que el formato exista en el catálogo.
-    2. Recuperar datos de la auditoría y hallazgos asociados.
-    3. Si se solicita generación con IA, invocar el agente generador de formatos.
-    4. Crear el documento DOCX con la plantilla correspondiente.
-    5. Almacenar y retornar metadatos.
+    1. Validar que el formato exista en el catalogo.
+    2. Generar el documento DOCX con python-docx.
+    3. Persistir metadatos en la base de datos.
+    4. Retornar como StreamingResponse para descarga.
     """
 
     if solicitud.numero_formato not in CATALOGO_FORMATOS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Formato {solicitud.numero_formato} no existe. Rango válido: 1-30.",
+            detail=f"Formato {solicitud.numero_formato} no existe. Rango valido: 1-30.",
         )
 
-    formato_id: str = str(uuid.uuid4())
-    nombre_formato: str = CATALOGO_FORMATOS[solicitud.numero_formato]
+    info = CATALOGO_FORMATOS[solicitud.numero_formato]
+    formato_id = str(uuid.uuid4())
 
-    # TODO: Implementar generación real del formato con python-docx y/o LLM
-    logger.info(
-        "Formato generado: id=%s, numero=%d, nombre=%s, auditoria=%s, ia=%s, usuario=%d",
-        formato_id, solicitud.numero_formato, nombre_formato,
-        solicitud.auditoria_id, solicitud.generar_con_ia, usuario_id,
-    )
+    try:
+        # Generar el DOCX
+        generador = obtener_generador(
+            numero_formato=solicitud.numero_formato,
+            datos=solicitud.parametros,
+        )
+        docx_bytes = generador.generar_bytes()
+
+        # Persistir metadatos en BD
+        try:
+            registro = FormatoGenerado(
+                id=formato_id,
+                numero_formato=solicitud.numero_formato,
+                nombre_formato=info["nombre"],
+                auditoria_id=solicitud.auditoria_id or None,
+                usuario_id=usuario_id,
+                estado="completado",
+                generado_con_ia=solicitud.generar_con_ia,
+                parametros=solicitud.parametros,
+                contenido_generado=f"DOCX generado ({len(docx_bytes)} bytes)",
+            )
+            db.add(registro)
+            await db.flush()
+        except Exception as exc_db:
+            logger.warning("No se pudo persistir formato en BD: %s", exc_db)
+
+        logger.info(
+            "Formato F%02d generado: id=%s, bytes=%d, usuario=%d",
+            solicitud.numero_formato, formato_id, len(docx_bytes), usuario_id,
+        )
+
+        # Retornar como stream
+        nombre_archivo = (
+            f"F{solicitud.numero_formato:02d}_{info['nombre'].replace(' ', '_')}.docx"
+        )
+
+        return StreamingResponse(
+            io.BytesIO(docx_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="{nombre_archivo}"',
+                "X-Formato-Id": formato_id,
+                "X-Formato-Nombre": info["nombre"],
+            },
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        logger.error("Error generando formato F%02d: %s", solicitud.numero_formato, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar el formato: {str(exc)}",
+        )
+
+
+@enrutador.get(
+    "/plantillas",
+    response_model=list[InfoPlantilla],
+    summary="Catalogo de plantillas de formatos",
+    description="Retorna el catalogo completo de formatos CGR (1-30) con estado de implementacion.",
+)
+async def listar_plantillas() -> list[dict[str, Any]]:
+    """Lista todas las plantillas de formatos disponibles."""
+    plantillas = []
+    for numero, info in CATALOGO_FORMATOS.items():
+        plantillas.append({
+            "numero": numero,
+            "nombre": info["nombre"],
+            "fase": info["fase"],
+            "implementado": numero in FORMATOS_IMPLEMENTADOS,
+        })
+    return plantillas
+
+
+@enrutador.post(
+    "/previsualizar",
+    summary="Previsualizar formato en HTML",
+    description="Genera una previsualizacion HTML del formato para mostrar en el frontend.",
+)
+async def previsualizar_formato(
+    solicitud: SolicitudGenerarFormato,
+) -> dict[str, Any]:
+    """Genera previsualizacion HTML basica del formato."""
+
+    if solicitud.numero_formato not in CATALOGO_FORMATOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Formato {solicitud.numero_formato} no existe.",
+        )
+
+    info = CATALOGO_FORMATOS[solicitud.numero_formato]
+    implementado = solicitud.numero_formato in FORMATOS_IMPLEMENTADOS
+
+    # Generar HTML de previsualizacion
+    entidad = solicitud.parametros.get("nombre_entidad", "[COMPLETAR]")
+    vigencia = solicitud.parametros.get("vigencia", "[COMPLETAR]")
+
+    html = f"""
+    <div style="font-family: Georgia, serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #1A5276; margin: 0;">CONTRALORIA GENERAL DE LA REPUBLICA</h2>
+            <p style="color: #5F6368; font-size: 12px; margin: 4px 0;">Sistema de Control Fiscal — CecilIA v2</p>
+            <hr style="border: 1.5px solid #C9A84C; margin: 10px 40px;" />
+            <h3 style="color: #1A5276;">FORMATO F{solicitud.numero_formato:02d} — {info['nombre'].upper()}</h3>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr>
+                <td style="background: #1A5276; color: white; padding: 6px 10px; font-weight: bold; font-size: 13px; width: 30%;">Entidad auditada</td>
+                <td style="border: 1px solid #ccc; padding: 6px 10px; font-size: 13px;">{entidad}</td>
+            </tr>
+            <tr>
+                <td style="background: #1A5276; color: white; padding: 6px 10px; font-weight: bold; font-size: 13px;">Vigencia</td>
+                <td style="border: 1px solid #ccc; padding: 6px 10px; font-size: 13px;">{vigencia}</td>
+            </tr>
+            <tr>
+                <td style="background: #1A5276; color: white; padding: 6px 10px; font-weight: bold; font-size: 13px;">Fase</td>
+                <td style="border: 1px solid #ccc; padding: 6px 10px; font-size: 13px;">{info['fase'].replace('-', ' ').title()}</td>
+            </tr>
+            <tr>
+                <td style="background: #1A5276; color: white; padding: 6px 10px; font-weight: bold; font-size: 13px;">Estado</td>
+                <td style="border: 1px solid #ccc; padding: 6px 10px; font-size: 13px;">{'Implementado' if implementado else 'Estructura basica'}</td>
+            </tr>
+        </table>
+        <p style="color: #5F6368; font-style: italic; font-size: 11px; text-align: center;">
+            Vista previa — El documento DOCX final incluye estilos profesionales,
+            tablas con formato y encabezado institucional CGR.
+        </p>
+    </div>
+    """
 
     return {
-        "id": formato_id,
         "numero_formato": solicitud.numero_formato,
-        "nombre_formato": nombre_formato,
-        "auditoria_id": solicitud.auditoria_id,
-        "estado": "completado",
-        "generado_con_ia": solicitud.generar_con_ia,
-        "ruta_archivo": None,
-        "creado_en": datetime.now(timezone.utc),
-        "usuario_id": usuario_id,
+        "nombre_formato": info["nombre"],
+        "fase": info["fase"],
+        "implementado": implementado,
+        "html": html,
     }
+
+
+@enrutador.get(
+    "/historial",
+    response_model=list[RespuestaHistorial],
+    summary="Historial de formatos generados",
+    description="Lista los formatos generados previamente con paginacion.",
+)
+async def obtener_historial(
+    limite: int = Query(default=50, ge=1, le=200),
+    desplazamiento: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(obtener_sesion_db),
+    usuario_id: int = Depends(_obtener_usuario_actual_id),
+) -> list[dict[str, Any]]:
+    """Obtiene el historial de formatos generados."""
+    try:
+        resultado = await db.execute(
+            select(FormatoGenerado)
+            .where(FormatoGenerado.usuario_id == usuario_id)
+            .order_by(FormatoGenerado.created_at.desc())
+            .limit(limite)
+            .offset(desplazamiento)
+        )
+        formatos = resultado.scalars().all()
+
+        return [
+            {
+                "id": f.id,
+                "numero_formato": f.numero_formato,
+                "nombre_formato": f.nombre_formato,
+                "estado": f.estado,
+                "generado_con_ia": f.generado_con_ia,
+                "creado_en": f.created_at,
+            }
+            for f in formatos
+        ]
+    except Exception as exc:
+        logger.warning("Error consultando historial: %s", exc)
+        return []
 
 
 @enrutador.get(
@@ -167,27 +318,50 @@ async def generar_formato(
     description="Lista los formatos CGR generados con filtros opcionales.",
 )
 async def listar_formatos(
-    auditoria_id: Optional[str] = Query(default=None, description="Filtrar por auditoría"),
-    numero_formato: Optional[int] = Query(default=None, ge=1, le=30, description="Filtrar por número de formato"),
+    auditoria_id: Optional[str] = Query(default=None),
+    numero_formato: Optional[int] = Query(default=None, ge=1, le=30),
     limite: int = Query(default=50, ge=1, le=200),
     desplazamiento: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(obtener_sesion_db),
     usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> list[dict[str, Any]]:
-    """Lista formatos generados con filtrado y paginación."""
+    """Lista formatos generados con filtrado y paginacion."""
+    try:
+        query = select(FormatoGenerado).where(
+            FormatoGenerado.usuario_id == usuario_id
+        )
+        if auditoria_id:
+            query = query.where(FormatoGenerado.auditoria_id == auditoria_id)
+        if numero_formato:
+            query = query.where(FormatoGenerado.numero_formato == numero_formato)
 
-    logger.info(
-        "Listando formatos: auditoria=%s, numero=%s, limite=%d, offset=%d, usuario=%d",
-        auditoria_id, numero_formato, limite, desplazamiento, usuario_id,
-    )
-    return []
+        query = query.order_by(FormatoGenerado.created_at.desc()).limit(limite).offset(desplazamiento)
+        resultado = await db.execute(query)
+        formatos = resultado.scalars().all()
+
+        return [
+            {
+                "id": f.id,
+                "numero_formato": f.numero_formato,
+                "nombre_formato": f.nombre_formato,
+                "auditoria_id": f.auditoria_id or "",
+                "estado": f.estado,
+                "generado_con_ia": f.generado_con_ia,
+                "ruta_archivo": f.ruta_archivo,
+                "creado_en": f.created_at,
+                "usuario_id": f.usuario_id or 0,
+            }
+            for f in formatos
+        ]
+    except Exception as exc:
+        logger.warning("Error listando formatos: %s", exc)
+        return []
 
 
 @enrutador.get(
     "/{formato_id}",
     response_model=RespuestaFormato,
     summary="Obtener detalle de formato",
-    description="Retorna los metadatos de un formato generado específico.",
 )
 async def obtener_formato(
     formato_id: str,
@@ -195,52 +369,27 @@ async def obtener_formato(
     usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> dict[str, Any]:
     """Obtiene un formato generado por su ID."""
+    try:
+        resultado = await db.execute(
+            select(FormatoGenerado).where(FormatoGenerado.id == formato_id)
+        )
+        f = resultado.scalar_one_or_none()
+        if not f:
+            raise HTTPException(status_code=404, detail="Formato no encontrado.")
 
-    logger.info("Consultando formato %s para usuario %d", formato_id, usuario_id)
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Formato {formato_id} no encontrado.",
-    )
-
-
-@enrutador.get(
-    "/{formato_id}/descargar",
-    summary="Descargar formato como DOCX",
-    description="Descarga el formato generado en formato Microsoft Word (DOCX).",
-    response_class=StreamingResponse,
-)
-async def descargar_formato(
-    formato_id: str,
-    db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
-) -> StreamingResponse:
-    """Descarga un formato generado como archivo DOCX.
-
-    Retorna un StreamingResponse con el contenido del archivo.
-    """
-
-    # TODO: Recuperar archivo desde almacenamiento y transmitir
-    # formato = await db.execute(select(FormatoGenerado).where(...))
-    # if not formato or not formato.ruta_archivo:
-    #     raise HTTPException(status_code=404, detail="Formato no encontrado")
-    #
-    # ruta = Path(formato.ruta_archivo)
-    # if not ruta.exists():
-    #     raise HTTPException(status_code=404, detail="Archivo del formato no disponible")
-    #
-    # def iterador_archivo():
-    #     with open(ruta, "rb") as f:
-    #         while chunk := f.read(8192):
-    #             yield chunk
-    #
-    # return StreamingResponse(
-    #     iterador_archivo(),
-    #     media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    #     headers={"Content-Disposition": f'attachment; filename="formato_{formato.numero_formato}.docx"'},
-    # )
-
-    logger.info("Descarga de formato %s solicitada por usuario %d", formato_id, usuario_id)
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Formato {formato_id} no encontrado o archivo no disponible.",
-    )
+        return {
+            "id": f.id,
+            "numero_formato": f.numero_formato,
+            "nombre_formato": f.nombre_formato,
+            "auditoria_id": f.auditoria_id or "",
+            "estado": f.estado,
+            "generado_con_ia": f.generado_con_ia,
+            "ruta_archivo": f.ruta_archivo,
+            "creado_en": f.created_at,
+            "usuario_id": f.usuario_id or 0,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Error obteniendo formato: %s", exc)
+        raise HTTPException(status_code=404, detail="Formato no encontrado.")
