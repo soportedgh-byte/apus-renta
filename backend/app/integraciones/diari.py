@@ -82,10 +82,14 @@ class ClienteDIARI(ClienteBaseIntegracion):
             "DIARI: buscar_informes() — STUB (entidad=%s, vigencia=%s, tipo=%s)",
             entidad, vigencia, tipo_informe,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con DIARI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "DIARI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con DIARI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def obtener_informe(self, codigo_informe: str) -> dict[str, Any]:
         """Obtiene un informe de auditoría específico.
@@ -100,10 +104,14 @@ class ClienteDIARI(ClienteBaseIntegracion):
             ErrorIntegracion: Integración aún no implementada.
         """
         logger.warning("DIARI: obtener_informe() — STUB (codigo=%s)", codigo_informe)
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con DIARI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "DIARI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con DIARI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def publicar_informe(
         self,
@@ -123,10 +131,14 @@ class ClienteDIARI(ClienteBaseIntegracion):
             ErrorIntegracion: Integración aún no implementada.
         """
         logger.warning("DIARI: publicar_informe() — STUB")
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con DIARI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "DIARI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con DIARI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def obtener_estadisticas_hallazgos(
         self,
@@ -149,7 +161,11 @@ class ClienteDIARI(ClienteBaseIntegracion):
             "DIARI: obtener_estadisticas_hallazgos() — STUB (entidad=%s, vigencia=%s)",
             entidad, vigencia,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con DIARI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "DIARI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con DIARI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }

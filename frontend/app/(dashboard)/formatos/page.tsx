@@ -21,7 +21,22 @@ import { Tarjeta } from '@/components/ui/card';
 import { Insignia } from '@/components/ui/badge';
 import { Boton } from '@/components/ui/button';
 import { obtenerDireccionActiva } from '@/lib/auth';
+import { apiCliente } from '@/lib/api';
 import type { Direccion } from '@/lib/types';
+
+/** Obtiene el token JWT para peticiones autenticadas */
+function obtenerToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('cecilia_token');
+}
+
+/** Construye headers con autenticacion */
+function headersAuth(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+  const token = obtenerToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
 
 /** Tipo de plantilla del catalogo */
 interface Plantilla {
@@ -106,7 +121,7 @@ export default function PaginaFormatos() {
   const cargarPlantillas = async () => {
     try {
       const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
-      const resp = await fetch(`${urlBase}/formatos/plantillas`);
+      const resp = await fetch(`${urlBase}/formatos/plantillas`, { headers: headersAuth() });
       if (resp.ok) {
         const data = await resp.json();
         setPlantillas(data);
@@ -122,7 +137,7 @@ export default function PaginaFormatos() {
   const cargarHistorial = async () => {
     try {
       const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
-      const resp = await fetch(`${urlBase}/formatos/historial`);
+      const resp = await fetch(`${urlBase}/formatos/historial`, { headers: headersAuth() });
       if (resp.ok) {
         setHistorial(await resp.json());
       }
@@ -144,7 +159,7 @@ export default function PaginaFormatos() {
       const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
       const resp = await fetch(`${urlBase}/formatos/previsualizar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headersAuth(),
         body: JSON.stringify({
           numero_formato: formatoSeleccionado.numero,
           parametros: {
@@ -170,7 +185,7 @@ export default function PaginaFormatos() {
       const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
       const resp = await fetch(`${urlBase}/formatos/generar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headersAuth(),
         body: JSON.stringify({
           numero_formato: formatoSeleccionado.numero,
           auditoria_id: '',

@@ -1,11 +1,12 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: __init__.py
-Propósito: Paquete de herramientas (tools) LangChain para el proceso auditor
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Paquete de herramientas (tools) LangChain para el proceso auditor
+           y consultas a APIs externas
+Sprint: 7
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
@@ -17,6 +18,9 @@ from app.tools.analisis_financiero import analisis_financiero
 from app.tools.analisis_contratacion import analisis_contratacion
 from app.tools.generar_formato import generar_formato
 from app.tools.acceder_workspace_local import acceder_workspace_local
+from app.tools.consultar_secop import consultar_secop
+from app.tools.verificar_norma import verificar_norma
+from app.tools.obtener_datos_dane import obtener_datos_dane
 
 TODAS_LAS_HERRAMIENTAS: list = [
     buscar_normativa,
@@ -27,6 +31,16 @@ TODAS_LAS_HERRAMIENTAS: list = [
     analisis_contratacion,
     generar_formato,
     acceder_workspace_local,
+    consultar_secop,
+    verificar_norma,
+    obtener_datos_dane,
+]
+
+# Herramientas de integraciones externas (subconjunto)
+HERRAMIENTAS_INTEGRACION: list = [
+    consultar_secop,
+    verificar_norma,
+    obtener_datos_dane,
 ]
 
 __all__: list[str] = [
@@ -38,5 +52,9 @@ __all__: list[str] = [
     "analisis_contratacion",
     "generar_formato",
     "acceder_workspace_local",
+    "consultar_secop",
+    "verificar_norma",
+    "obtener_datos_dane",
     "TODAS_LAS_HERRAMIENTAS",
+    "HERRAMIENTAS_INTEGRACION",
 ]

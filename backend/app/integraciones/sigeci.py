@@ -70,10 +70,14 @@ class ClienteSIGECI(ClienteBaseIntegracion):
             ErrorIntegracion: Integración aún no implementada.
         """
         logger.warning("SIGECI: obtener_auditoria() — STUB (codigo=%s)", codigo_auditoria)
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIGECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIGECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIGECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def consultar_plan_mejoramiento(
         self,
@@ -96,10 +100,14 @@ class ClienteSIGECI(ClienteBaseIntegracion):
             "SIGECI: consultar_plan_mejoramiento() — STUB (nit=%s, vigencia=%s)",
             nit_entidad, vigencia,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIGECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIGECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIGECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def registrar_hallazgo(
         self,
@@ -122,10 +130,14 @@ class ClienteSIGECI(ClienteBaseIntegracion):
             "SIGECI: registrar_hallazgo() — STUB (auditoria=%s)",
             codigo_auditoria,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIGECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIGECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIGECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def obtener_equipo_auditoria(self, codigo_auditoria: str) -> dict[str, Any]:
         """Obtiene el equipo asignado a una auditoría en SIGECI.
@@ -140,7 +152,11 @@ class ClienteSIGECI(ClienteBaseIntegracion):
             ErrorIntegracion: Integración aún no implementada.
         """
         logger.warning("SIGECI: obtener_equipo_auditoria() — STUB (codigo=%s)", codigo_auditoria)
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIGECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIGECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIGECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }

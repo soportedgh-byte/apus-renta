@@ -69,10 +69,14 @@ class ClienteAPA(ClienteBaseIntegracion):
             ErrorIntegracion: Integración aún no implementada.
         """
         logger.warning("APA: obtener_plan_vigilancia() — STUB (vigencia=%s)", vigencia)
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con APA pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "APA",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con APA pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def obtener_universo_auditable(
         self,
@@ -95,10 +99,14 @@ class ClienteAPA(ClienteBaseIntegracion):
             "APA: obtener_universo_auditable() — STUB (vigencia=%s, direccion=%s)",
             vigencia, direccion,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con APA pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "APA",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con APA pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }
 
     async def obtener_cronograma(
         self,
@@ -121,7 +129,11 @@ class ClienteAPA(ClienteBaseIntegracion):
             "APA: obtener_cronograma() — STUB (vigencia=%s, direccion=%s)",
             vigencia, direccion,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con APA pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "APA",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con APA pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+        }

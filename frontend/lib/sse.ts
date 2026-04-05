@@ -88,6 +88,12 @@ export function iniciarStreaming(
                   callbacks.alError(evento.error || 'Error desconocido en el streaming');
                   break;
                 case 'fin':
+                  // Extraer fuentes/citas del evento final
+                  if (evento.fuentes && Array.isArray(evento.fuentes)) {
+                    for (const fuente of evento.fuentes) {
+                      callbacks.alRecibirCita(fuente);
+                    }
+                  }
                   callbacks.alCompletar();
                   return;
               }

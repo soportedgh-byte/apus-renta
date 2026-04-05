@@ -95,15 +95,58 @@ const iconosTipoArchivo: Record<string, string> = {
   txt: '📄',
 };
 
-const apisIntegracion = [
-  { nombre: 'SIRECI', estado: 'activo' as const },
-  { nombre: 'APA', estado: 'activo' as const },
-  { nombre: 'SIGECI', estado: 'pendiente' as const },
-  { nombre: 'DIARI', estado: 'pendiente' as const },
-  { nombre: 'SECOP', estado: 'activo' as const },
-  { nombre: 'Congreso', estado: 'pendiente' as const },
-  { nombre: 'DANE', estado: 'activo' as const },
+interface EstadoAPI {
+  nombre: string;
+  estado: 'disponible' | 'degradado' | 'no_disponible' | 'pendiente' | 'circuito_abierto' | 'cargando';
+  latencia_ms?: number | null;
+  mensaje?: string;
+}
+
+const apisIntegracionDefault: EstadoAPI[] = [
+  { nombre: 'SECOP II', estado: 'cargando' },
+  { nombre: 'DANE', estado: 'cargando' },
+  { nombre: 'Congreso', estado: 'cargando' },
+  { nombre: 'SIRECI', estado: 'pendiente', mensaje: 'Requiere VPN CGR' },
+  { nombre: 'SIGECI', estado: 'pendiente', mensaje: 'Requiere VPN CGR' },
+  { nombre: 'APA', estado: 'pendiente', mensaje: 'Requiere VPN CGR' },
+  { nombre: 'DIARI', estado: 'pendiente', mensaje: 'Requiere VPN CGR' },
 ];
+
+const colorEstadoAPI = (estado: string): string => {
+  switch (estado) {
+    case 'disponible': return '#27AE60';
+    case 'degradado': return '#F1C40F';
+    case 'no_disponible': return '#E74C3C';
+    case 'circuito_abierto': return '#E74C3C';
+    case 'pendiente': return '#F1C40F';
+    case 'cargando': return '#5F6368';
+    default: return '#5F6368';
+  }
+};
+
+const textoEstadoAPI = (estado: string): string => {
+  switch (estado) {
+    case 'disponible': return 'Activo';
+    case 'degradado': return 'Degradado';
+    case 'no_disponible': return 'No disponible';
+    case 'circuito_abierto': return 'Bloqueado';
+    case 'pendiente': return 'Pendiente';
+    case 'cargando': return 'Verificando...';
+    default: return estado;
+  }
+};
+
+const colorClaseEstadoAPI = (estado: string): string => {
+  switch (estado) {
+    case 'disponible': return 'text-green-400';
+    case 'degradado': return 'text-yellow-400';
+    case 'no_disponible': return 'text-red-400';
+    case 'circuito_abierto': return 'text-red-400';
+    case 'pendiente': return 'text-yellow-400';
+    case 'cargando': return 'text-[#5F6368]';
+    default: return 'text-[#5F6368]';
+  }
+};
 
 /**
  * Barra lateral de navegacion principal — 280px
@@ -121,12 +164,35 @@ export function BarraLateral() {
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [colapsado, setColapsado] = useState(false);
+  const [estadoAPIs, setEstadoAPIs] = useState<EstadoAPI[]>(apisIntegracionDefault);
+  const [cargandoAPIs, setCargandoAPIs] = useState(false);
   const refInputEdicion = useRef<HTMLInputElement>(null);
   const usuario = obtenerUsuario();
+
+  const cargarEstadoAPIs = useCallback(async () => {
+    setCargandoAPIs(true);
+    try {
+      const datos = await apiCliente.get<any[]>('/integraciones/estado');
+      if (datos && Array.isArray(datos)) {
+        const mapped: EstadoAPI[] = datos.map((s: any) => ({
+          nombre: s.servicio,
+          estado: s.estado as EstadoAPI['estado'],
+          latencia_ms: s.latencia_ms,
+          mensaje: s.mensaje,
+        }));
+        setEstadoAPIs(mapped);
+      }
+    } catch (error) {
+      console.error('[CecilIA] Error al cargar estado APIs:', error);
+    } finally {
+      setCargandoAPIs(false);
+    }
+  }, []);
 
   useEffect(() => {
     setDireccionActivaState(obtenerDireccionActiva());
     cargarConversaciones();
+    cargarEstadoAPIs();
   }, []);
 
   useEffect(() => {
@@ -517,22 +583,43 @@ export function BarraLateral() {
           {/* Tab: APIs */}
           <ContenidoPestana value="apis" className="flex-1 overflow-y-auto p-2">
             <div className="rounded-lg bg-[#1A2332]/40 p-3 border border-[#2D3748]/30">
-              <p className="text-[11px] font-medium text-[#9AA0A6] mb-3">Integraciones disponibles</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-medium text-[#9AA0A6]">Conectores externos</p>
+                <button
+                  onClick={cargarEstadoAPIs}
+                  className="text-[#5F6368] hover:text-[#9AA0A6]"
+                  title="Verificar estado"
+                >
+                  <RefreshCw className={`h-3 w-3 ${cargandoAPIs ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
               <div className="space-y-2">
-                {apisIntegracion.map((api) => (
+                {estadoAPIs.map((api) => (
                   <div key={api.nombre} className="flex items-center gap-2 text-[10px]">
                     <span
                       className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: api.estado === 'activo' ? '#27AE60' : '#F1C40F' }}
+                      style={{ backgroundColor: colorEstadoAPI(api.estado) }}
                     />
                     <span className="text-[#E8EAED] flex-1">{api.nombre}</span>
-                    <span className={`text-[9px] ${api.estado === 'activo' ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {api.estado === 'activo' ? 'Activo' : 'Pendiente'}
+                    {api.latencia_ms != null && api.latencia_ms > 0 && (
+                      <span className="text-[8px] text-[#5F6368]">{api.latencia_ms.toFixed(0)}ms</span>
+                    )}
+                    <span className={`text-[9px] ${colorClaseEstadoAPI(api.estado)}`}>
+                      {textoEstadoAPI(api.estado)}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
+            {esAdministrador && (
+              <Link
+                href="/admin/integraciones"
+                className="flex items-center gap-2 mt-2 rounded-lg border border-dashed border-[#2D3748] p-2 text-[10px] text-[#9AA0A6] hover:border-[#C9A84C]/40 hover:text-[#C9A84C] transition-colors"
+              >
+                <Shield className="h-3 w-3" />
+                Configurar integraciones
+              </Link>
+            )}
           </ContenidoPestana>
         </Pestanas>
 

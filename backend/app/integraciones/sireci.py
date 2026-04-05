@@ -79,13 +79,20 @@ class ClienteSIRECI(ClienteBaseIntegracion):
             "SIRECI: consultar_rendicion() — STUB (nit=%s, vigencia=%s, tipo=%s)",
             nit_entidad, vigencia, tipo_cuenta,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje=(
-                "Integración con SIRECI pendiente de implementación. "
-                "Requiere acceso a VPN interna de la CGR y credenciales de servicio."
+        return {
+            "servicio": "SIRECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIRECI pendiente de implementacion. "
+                "Requiere acceso a VPN interna de la CGR y credenciales de servicio. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
             ),
-        )
+            "parametros_recibidos": {
+                "nit_entidad": nit_entidad,
+                "vigencia": vigencia,
+                "tipo_cuenta": tipo_cuenta,
+            },
+        }
 
     async def obtener_estados_financieros(
         self,
@@ -108,10 +115,15 @@ class ClienteSIRECI(ClienteBaseIntegracion):
             "SIRECI: obtener_estados_financieros() — STUB (nit=%s, vigencia=%s)",
             nit_entidad, vigencia,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIRECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIRECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIRECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+            "parametros_recibidos": {"nit_entidad": nit_entidad, "vigencia": vigencia},
+        }
 
     async def obtener_ejecucion_presupuestal(
         self,
@@ -134,7 +146,12 @@ class ClienteSIRECI(ClienteBaseIntegracion):
             "SIRECI: obtener_ejecucion_presupuestal() — STUB (nit=%s, vigencia=%s)",
             nit_entidad, vigencia,
         )
-        raise ErrorIntegracion(
-            servicio=self.nombre_servicio,
-            mensaje="Integración con SIRECI pendiente. Requiere VPN y credenciales CGR.",
-        )
+        return {
+            "servicio": "SIRECI",
+            "estado": "pendiente",
+            "mensaje": (
+                "Integracion con SIRECI pendiente. Requiere VPN y credenciales CGR. "
+                "Contacto: Oficina de Sistemas — CD-TIC-CGR — sistemas@contraloria.gov.co"
+            ),
+            "parametros_recibidos": {"nit_entidad": nit_entidad, "vigencia": vigencia},
+        }

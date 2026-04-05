@@ -27,6 +27,52 @@ from app.llm import obtener_llm, invocar_con_fallback, info_modelo_activo
 logger = logging.getLogger("cecilia.services.chat")
 
 
+async def _recuperar_contexto_rag(consulta: str, colecciones: list[str] | None = None, top_k: int = 5) -> tuple[list[dict], list[dict]]:
+    """Recupera contexto RAG y genera citas formateadas.
+
+    Retorna (contexto_rag, fuentes) donde:
+      - contexto_rag: fragmentos crudos para inyectar en el prompt
+      - fuentes: citas formateadas para mostrar al usuario (CitaFuente)
+    """
+    try:
+        from app.main import fabrica_sesiones
+        from app.rag.retriever import buscar_similares
+
+        async with fabrica_sesiones() as db:
+            resultados = await buscar_similares(
+                consulta=consulta,
+                db=db,
+                colecciones=colecciones,
+                top_k=top_k,
+                umbral_similitud=0.35,
+            )
+
+        contexto_rag = []
+        fuentes = []
+        for r in resultados:
+            contexto_rag.append({
+                "contenido": r.contenido,
+                "coleccion": r.coleccion,
+                "documento": r.fuente,
+                "pagina": r.pagina,
+                "score": r.score,
+            })
+            fuentes.append({
+                "documento": r.fuente,
+                "pagina": r.pagina,
+                "seccion": r.metadata.get("seccion", None),
+                "fragmento": r.contenido[:200] + ("..." if len(r.contenido) > 200 else ""),
+                "confianza": round(r.score, 3),
+                "coleccion": r.coleccion,
+            })
+
+        return contexto_rag, fuentes
+
+    except Exception:
+        logger.debug("RAG no disponible, continuando sin contexto", exc_info=True)
+        return [], []
+
+
 class ChatService:
     """Servicio principal de chat que orquesta el grafo LangGraph."""
 
@@ -50,6 +96,9 @@ class ChatService:
             interaccion_id[:8], usuario_id, session_id[:8], fase_actual,
         )
 
+        # Recuperar contexto RAG
+        contexto_rag, fuentes_rag = await _recuperar_contexto_rag(mensaje, top_k=5)
+
         # Construir estado
         state: AuditState = {
             "messages": [HumanMessage(content=mensaje)],
@@ -58,10 +107,10 @@ class ChatService:
             "direccion": direccion,
             "fase_actual": fase_actual,
             "proyecto_auditoria_id": proyecto_auditoria_id,
-            "contexto_rag": [],
+            "contexto_rag": contexto_rag,
             "herramientas_disponibles": [],
             "respuesta_final": "",
-            "fuentes": [],
+            "fuentes": fuentes_rag,
             "modelo": "",
             "session_id": session_id,
         }
@@ -72,11 +121,14 @@ class ChatService:
         duracion: float = time.time() - inicio
         info_modelo = info_modelo_activo()
 
+        # Combinar fuentes del RAG + fuentes generadas por el grafo
+        fuentes_finales = fuentes_rag + [f for f in resultado.get("fuentes", []) if f not in fuentes_rag]
+
         respuesta: dict[str, Any] = {
             "interaccion_id": interaccion_id,
             "conversacion_id": conversacion_id or session_id,
             "respuesta": resultado.get("respuesta_final", ""),
-            "fuentes": resultado.get("fuentes", []),
+            "fuentes": fuentes_finales,
             "fase_actual": fase_actual,
             "modelo": info_modelo.get("modelo", ""),
             "nombre_modelo": info_modelo.get("nombre_display", ""),

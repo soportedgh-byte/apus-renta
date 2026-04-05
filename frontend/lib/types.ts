@@ -342,6 +342,7 @@ export interface EventoSSE {
   tipo: 'token' | 'cita' | 'error' | 'fin';
   contenido?: string;
   cita?: CitaFuente;
+  fuentes?: CitaFuente[];
   error?: string;
 }
 

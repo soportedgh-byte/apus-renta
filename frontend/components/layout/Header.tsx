@@ -158,14 +158,14 @@ export function Encabezado() {
               <div className="fixed inset-0 z-40" onClick={() => setMenuAbierto(false)} />
               <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[#2D3748] bg-[#1A2332] shadow-xl">
                 <div className="p-1">
-                  <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
+                  <Link href="/mi-perfil" onClick={() => setMenuAbierto(false)} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
                     <User className="h-3.5 w-3.5" />
                     Mi perfil
-                  </button>
-                  <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
+                  </Link>
+                  <Link href="/configuracion" onClick={() => setMenuAbierto(false)} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
                     <Settings className="h-3.5 w-3.5" />
                     Configuracion
-                  </button>
+                  </Link>
                   <Link href="/seleccion-rol" className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-[#9AA0A6] hover:bg-[#243044] hover:text-[#E8EAED] transition-colors">
                     <RefreshCw className="h-3.5 w-3.5" />
                     Cambiar direccion
