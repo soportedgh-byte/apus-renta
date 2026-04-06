@@ -4,8 +4,9 @@ Contraloria General de la Republica de Colombia
 
 Archivo: app/api/capacitacion_routes.py
 Proposito: Endpoints REST para el modulo de capacitacion/tutor:
-           rutas de aprendizaje, lecciones, progreso, quizzes y generadores.
-Sprint: 6
+           rutas de aprendizaje, lecciones, progreso, quizzes, gamificacion,
+           audio, flashcards, glosario, simulaciones y contenido adaptativo.
+Sprint: Capacitacion 2.0
 Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
@@ -16,6 +17,7 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +57,48 @@ class GenerarPodcastRequest(BaseModel):
 
 class GenerarGuiaFormatoRequest(BaseModel):
     numero_formato: int = Field(..., ge=1, le=30)
+
+
+# ── Schemas Capacitacion 2.0 ────────────────────────────────────────────────
+
+class CuestionarioEstiloRequest(BaseModel):
+    usuario_id: int
+    respuestas: dict[str, str] = Field(
+        ..., description="Respuestas del cuestionario VARK: {pregunta_1: 'a', ...}"
+    )
+
+
+class AgregarXPRequest(BaseModel):
+    usuario_id: int
+    cantidad: int = Field(..., ge=1)
+    motivo: str
+
+
+class GenerarAudioRequest(BaseModel):
+    tema: str
+    duracion: str = "5 minutos"
+
+
+class GenerarFlashcardsRequest(BaseModel):
+    tema: str
+    num_tarjetas: int = Field(default=10, ge=3, le=30)
+
+
+class GenerarInfografiaRequest(BaseModel):
+    tema: str
+    tipo_diagrama: str = "flowchart"
+
+
+class RegistrarRepasoRequest(BaseModel):
+    repaso_id: str
+    aciertos: int = Field(..., ge=0)
+    total: int = Field(..., ge=1)
+
+
+class IniciarSimulacionRequest(BaseModel):
+    simulacion_id: str
+    paso: int = Field(default=1, ge=1)
+    contexto_previo: str = ""
 
 
 # ── Endpoints: Rutas de aprendizaje ──────────────────────────────────────────
@@ -253,3 +297,409 @@ async def seed_datos(
     servicio = CapacitacionService(db)
     await servicio.seed_rutas_y_lecciones()
     return {"mensaje": "Rutas y lecciones de capacitacion cargadas exitosamente"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CAPACITACION 2.0 — Aprendizaje adaptativo, gamificacion, audio, simulaciones
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ── Perfil de aprendizaje (cuestionario VARK) ────────────────────────────────
+
+@enrutador.post("/perfil-aprendizaje")
+async def registrar_perfil_aprendizaje(
+    datos: CuestionarioEstiloRequest,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Registra respuestas del cuestionario de estilos y calcula perfil VARK."""
+    from app.models.capacitacion import PerfilAprendizaje
+    from sqlalchemy import select
+    import uuid
+
+    # Clasificar por estilo
+    conteo = {"lector": 0, "auditivo": 0, "visual": 0, "kinestesico": 0}
+    mapa_opciones = {
+        "a": "lector", "b": "auditivo", "c": "visual", "d": "kinestesico",
+    }
+    for pregunta, respuesta in datos.respuestas.items():
+        estilo = mapa_opciones.get(respuesta.lower(), "lector")
+        conteo[estilo] += 1
+
+    estilo_predominante = max(conteo, key=conteo.get)  # type: ignore[arg-type]
+
+    # Guardar o actualizar perfil
+    result = await db.execute(
+        select(PerfilAprendizaje).where(
+            PerfilAprendizaje.usuario_id == datos.usuario_id
+        )
+    )
+    perfil = result.scalar_one_or_none()
+
+    if perfil:
+        perfil.estilo_predominante = estilo_predominante
+        perfil.respuestas_cuestionario = datos.respuestas
+        perfil.puntajes = conteo
+    else:
+        perfil = PerfilAprendizaje(
+            id=str(uuid.uuid4()),
+            usuario_id=datos.usuario_id,
+            estilo_predominante=estilo_predominante,
+            respuestas_cuestionario=datos.respuestas,
+            puntajes=conteo,
+        )
+        db.add(perfil)
+
+    await db.commit()
+
+    return {
+        "usuario_id": datos.usuario_id,
+        "estilo_predominante": estilo_predominante,
+        "puntajes": conteo,
+        "descripcion": _DESCRIPCIONES_ESTILO.get(estilo_predominante, ""),
+    }
+
+
+@enrutador.get("/perfil-aprendizaje/{usuario_id}")
+async def obtener_perfil_aprendizaje(
+    usuario_id: int,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Obtiene el perfil de estilo de aprendizaje del usuario."""
+    from app.models.capacitacion import PerfilAprendizaje
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(PerfilAprendizaje).where(
+            PerfilAprendizaje.usuario_id == usuario_id
+        )
+    )
+    perfil = result.scalar_one_or_none()
+
+    if not perfil:
+        return {"tiene_perfil": False, "usuario_id": usuario_id}
+
+    return {
+        "tiene_perfil": True,
+        "usuario_id": usuario_id,
+        "estilo_predominante": perfil.estilo_predominante,
+        "puntajes": perfil.puntajes,
+        "respuestas": perfil.respuestas_cuestionario,
+        "descripcion": _DESCRIPCIONES_ESTILO.get(perfil.estilo_predominante, ""),
+    }
+
+
+# ── Gamificacion: XP, niveles, rachas, insignias ───────────────────────────
+
+@enrutador.get("/gamificacion/{usuario_id}")
+async def obtener_gamificacion(
+    usuario_id: int,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Obtiene perfil de gamificacion: XP, nivel, racha, insignias."""
+    from app.services.gamificacion_service import GamificacionService
+    servicio = GamificacionService()
+    return await servicio.obtener_o_crear_perfil(db, usuario_id)
+
+
+@enrutador.post("/gamificacion/xp")
+async def agregar_xp(
+    datos: AgregarXPRequest,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Agrega XP al usuario y actualiza nivel/racha/insignias."""
+    from app.services.gamificacion_service import GamificacionService
+    servicio = GamificacionService()
+    resultado = await servicio.agregar_xp(
+        db, datos.usuario_id, datos.cantidad, datos.motivo
+    )
+    await db.commit()
+    return resultado
+
+
+# ── Repaso espaciado (spaced repetition) ─────────────────────────────────────
+
+@enrutador.get("/repasos/{usuario_id}")
+async def obtener_repasos_pendientes(
+    usuario_id: int,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> list[dict[str, Any]]:
+    """Obtiene repasos programados pendientes para el usuario."""
+    from app.services.gamificacion_service import GamificacionService
+    servicio = GamificacionService()
+    return await servicio.obtener_repasos_pendientes(db, usuario_id)
+
+
+@enrutador.post("/repasos/registrar")
+async def registrar_resultado_repaso(
+    datos: RegistrarRepasoRequest,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Registra resultado de un repaso y reprograma el siguiente."""
+    from app.services.gamificacion_service import GamificacionService
+    servicio = GamificacionService()
+    resultado = await servicio.registrar_resultado_repaso(
+        db, datos.repaso_id, datos.aciertos, datos.total
+    )
+    await db.commit()
+    return resultado
+
+
+# ── Audio: podcasts y explicaciones con edge-tts ─────────────────────────────
+
+@enrutador.post("/generar-audio")
+async def generar_audio_podcast(
+    datos: GenerarAudioRequest,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Genera audio MP3 tipo podcast con 2 voces sobre un tema."""
+    from app.services.audio_service import AudioService
+    servicio = AudioService()
+
+    # Generar script
+    script = await servicio.generar_script_podcast(
+        tema=datos.tema, duracion=datos.duracion
+    )
+
+    # Intentar generar audio
+    try:
+        audio_bytes, duracion = await servicio.generar_audio_podcast(script)
+        import base64
+        return {
+            "tipo": "podcast_audio",
+            "tema": datos.tema,
+            "script": script,
+            "audio_base64": base64.b64encode(audio_bytes).decode("utf-8"),
+            "duracion_segundos": duracion,
+            "formato": "mp3",
+        }
+    except Exception as e:
+        logger.warning("Audio no generado (edge-tts): %s — retornando solo script", e)
+        return {
+            "tipo": "podcast_script",
+            "tema": datos.tema,
+            "script": script,
+            "audio_base64": None,
+            "duracion_segundos": 0,
+            "formato": "text",
+            "nota": "Audio no disponible — se retorna solo el script del podcast",
+        }
+
+
+@enrutador.post("/generar-explicacion-audio")
+async def generar_explicacion_audio(
+    tema: str = Query(...),
+    voz: str = Query(default="DON_CARLOS"),
+) -> dict[str, Any]:
+    """Genera explicacion narrada de un solo locutor."""
+    from app.services.audio_service import AudioService
+    servicio = AudioService()
+
+    try:
+        audio_bytes, duracion = await servicio.generar_explicacion_audio(tema, voz)
+        import base64
+        return {
+            "tipo": "explicacion_audio",
+            "tema": tema,
+            "voz": voz,
+            "audio_base64": base64.b64encode(audio_bytes).decode("utf-8"),
+            "duracion_segundos": duracion,
+            "formato": "mp3",
+        }
+    except Exception as e:
+        logger.warning("Audio explicacion no generado: %s", e)
+        return {
+            "tipo": "explicacion_audio",
+            "tema": tema,
+            "audio_base64": None,
+            "nota": f"Audio no disponible: {e}",
+        }
+
+
+# ── Flashcards ───────────────────────────────────────────────────────────────
+
+@enrutador.post("/generar-flashcards")
+async def generar_flashcards(
+    datos: GenerarFlashcardsRequest,
+) -> dict[str, Any]:
+    """Genera set de flashcards sobre un tema con taxonomia de Bloom."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    tarjetas = await servicio.generar_flashcards(
+        tema=datos.tema, num_tarjetas=datos.num_tarjetas
+    )
+    return {
+        "tipo": "flashcards",
+        "tema": datos.tema,
+        "total": len(tarjetas),
+        "tarjetas": tarjetas,
+    }
+
+
+# ── Infografia Mermaid ───────────────────────────────────────────────────────
+
+@enrutador.post("/generar-infografia")
+async def generar_infografia(
+    datos: GenerarInfografiaRequest,
+) -> dict[str, Any]:
+    """Genera diagrama Mermaid para visualizacion de un tema."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    mermaid_code = await servicio.generar_infografia_mermaid(
+        tema=datos.tema, tipo_diagrama=datos.tipo_diagrama
+    )
+    return {
+        "tipo": "infografia_mermaid",
+        "tema": datos.tema,
+        "tipo_diagrama": datos.tipo_diagrama,
+        "mermaid": mermaid_code,
+    }
+
+
+# ── Contenido de leccion adaptativo ──────────────────────────────────────────
+
+@enrutador.get("/lecciones/{leccion_id}/contenido-adaptativo")
+async def obtener_contenido_adaptativo(
+    leccion_id: str,
+    usuario_id: int = Query(...),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Genera contenido de leccion adaptado al estilo de aprendizaje del usuario."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    from app.models.capacitacion import PerfilAprendizaje
+    from sqlalchemy import select
+
+    # Obtener estilo del usuario
+    estilo = "lector"
+    result = await db.execute(
+        select(PerfilAprendizaje).where(
+            PerfilAprendizaje.usuario_id == usuario_id
+        )
+    )
+    perfil = result.scalar_one_or_none()
+    if perfil:
+        estilo = perfil.estilo_predominante
+
+    servicio = ContenidoLeccionService()
+    contenido = await servicio.generar_contenido_leccion(
+        db, leccion_id, estilo_usuario=estilo
+    )
+    contenido["estilo_usuario"] = estilo
+    return contenido
+
+
+# ── Glosario interactivo ─────────────────────────────────────────────────────
+
+@enrutador.get("/glosario")
+async def listar_glosario(
+    categoria: Optional[str] = Query(None),
+    busqueda: Optional[str] = Query(None),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> list[dict[str, Any]]:
+    """Lista entradas del glosario con filtros opcionales."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    return await servicio.obtener_glosario(db, categoria=categoria, busqueda=busqueda)
+
+
+@enrutador.post("/glosario/seed")
+async def seed_glosario(
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Puebla el glosario con terminos base (solo desarrollo)."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    count = await servicio.seed_glosario(db)
+    await db.commit()
+    return {"mensaje": f"Glosario poblado con {count} terminos nuevos", "nuevos": count}
+
+
+# ── Simulaciones guiadas ─────────────────────────────────────────────────────
+
+@enrutador.get("/simulaciones")
+async def listar_simulaciones() -> list[dict[str, Any]]:
+    """Lista las simulaciones guiadas disponibles."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    return servicio.obtener_simulaciones_disponibles()
+
+
+@enrutador.post("/simulaciones/paso")
+async def obtener_paso_simulacion(
+    datos: IniciarSimulacionRequest,
+) -> dict[str, Any]:
+    """Obtiene contenido de un paso de simulacion (generado con IA)."""
+    from app.services.contenido_leccion_service import ContenidoLeccionService
+    servicio = ContenidoLeccionService()
+    return await servicio.obtener_paso_simulacion(
+        simulacion_id=datos.simulacion_id,
+        paso=datos.paso,
+        contexto_previo=datos.contexto_previo,
+    )
+
+
+# ── Dashboard del aprendiz (resumen completo) ────────────────────────────────
+
+@enrutador.get("/mi-progreso/{usuario_id}")
+async def obtener_mi_progreso_completo(
+    usuario_id: int,
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Dashboard completo del aprendiz: progreso + gamificacion + repasos."""
+    from app.services.gamificacion_service import GamificacionService
+
+    servicio_cap = CapacitacionService(db)
+    servicio_gam = GamificacionService()
+
+    # Obtener datos en paralelo
+    progreso = await servicio_cap.obtener_resumen_progreso(usuario_id)
+    gamificacion = await servicio_gam.obtener_o_crear_perfil(db, usuario_id)
+    repasos = await servicio_gam.obtener_repasos_pendientes(db, usuario_id)
+
+    return {
+        "usuario_id": usuario_id,
+        "progreso": progreso,
+        "gamificacion": gamificacion,
+        "repasos_pendientes": repasos,
+        "total_repasos_pendientes": len(repasos),
+    }
+
+
+# ── Biblioteca de recursos generados ─────────────────────────────────────────
+
+@enrutador.get("/biblioteca")
+async def listar_recursos(
+    tipo: Optional[str] = Query(None, description="podcast|infografia|flashcard|manual"),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> list[dict[str, Any]]:
+    """Lista recursos generados (podcasts, infografias, flashcards, etc.)."""
+    from app.models.capacitacion import RecursoGenerado
+    from sqlalchemy import select
+
+    query = select(RecursoGenerado).order_by(RecursoGenerado.created_at.desc()).limit(50)
+    if tipo:
+        query = query.where(RecursoGenerado.tipo == tipo)
+
+    result = await db.execute(query)
+    recursos = result.scalars().all()
+
+    return [
+        {
+            "id": r.id,
+            "tipo": r.tipo,
+            "tema": r.tema,
+            "formato": r.formato,
+            "duracion_segundos": r.duracion_segundos,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in recursos
+    ]
+
+
+# ── Constantes internas ──────────────────────────────────────────────────────
+
+_DESCRIPCIONES_ESTILO = {
+    "lector": "Aprendes mejor leyendo textos detallados, tomando notas y revisando documentos escritos.",
+    "auditivo": "Aprendes mejor escuchando explicaciones, podcasts y discusiones en grupo.",
+    "visual": "Aprendes mejor con diagramas, tablas, infografias y organizadores visuales.",
+    "kinestesico": "Aprendes mejor haciendo ejercicios practicos, simulaciones y actividades interactivas.",
+}

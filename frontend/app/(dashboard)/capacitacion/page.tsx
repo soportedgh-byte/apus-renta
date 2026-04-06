@@ -10,8 +10,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   BookOpen, Clock, CheckCircle, Award, Trophy,
-  ChevronRight, Download, FileText, Headphones,
-  BookMarked, BarChart3, Sparkles,
+  ChevronRight, BookMarked, BarChart3, Sparkles,
+  Target, Brain, Zap,
 } from 'lucide-react';
 import { obtenerUsuario } from '@/lib/auth';
 import { apiCliente } from '@/lib/api';
@@ -136,63 +136,31 @@ function TarjetaRuta({
   );
 }
 
-// ── Componente: Acciones rapidas ────────────────────────────────────────────
-function AccionesRapidas() {
-  const acciones = [
-    { icono: FileText, etiqueta: 'Generar manual', color: '#C9A84C', endpoint: 'generar-manual' },
-    { icono: Headphones, etiqueta: 'Script podcast', color: '#2471A3', endpoint: 'generar-podcast-script' },
-    { icono: BookMarked, etiqueta: 'Glosario fiscal', color: '#27AE60', endpoint: 'generar-glosario' },
-    { icono: Sparkles, etiqueta: 'Guia formato', color: '#8E44AD', endpoint: 'generar-guia-formato' },
+// ── Componente: Modulos Capacitacion 2.0 ──────────────────────────────────��─
+function ModulosCapacitacion() {
+  const modulos = [
+    { href: '/capacitacion/cuestionario', icono: Brain, etiqueta: 'Descubre tu estilo', desc: 'Cuestionario VARK', color: '#E74C3C' },
+    { href: '/capacitacion/mi-progreso', icono: Trophy, etiqueta: 'Mi progreso', desc: 'XP, nivel, insignias', color: '#C9A84C' },
+    { href: '/capacitacion/biblioteca', icono: Sparkles, etiqueta: 'Biblioteca', desc: 'Podcasts, flashcards, infografias', color: '#8E44AD' },
+    { href: '/capacitacion/glosario', icono: BookMarked, etiqueta: 'Glosario', desc: 'Terminos de control fiscal', color: '#27AE60' },
+    { href: '/capacitacion/simulador', icono: Target, etiqueta: 'Simulador', desc: 'Escenarios de auditoria', color: '#1A5276' },
   ];
 
-  const descargar = async (endpoint: string, nombre: string) => {
-    try {
-      let body: any = {};
-      if (endpoint === 'generar-manual') body = { tema: 'auditoria', nivel: 'basico' };
-      else if (endpoint === 'generar-podcast-script') body = { tema: 'control_fiscal' };
-      else if (endpoint === 'generar-guia-formato') body = { numero_formato: 1 };
-
-      const resp = await apiCliente.post<any>(`/capacitacion/${endpoint}`, body);
-
-      if (resp.contenido_base64) {
-        const byteChars = atob(resp.contenido_base64);
-        const byteNumbers = new Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = resp.nombre_archivo || `${nombre}.docx`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else if (resp.script) {
-        const blob = new Blob([resp.script], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Script_Podcast_${resp.tema}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error('[CecilIA] Error generando contenido:', error);
-    }
-  };
-
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {acciones.map((a) => (
-        <button
-          key={a.endpoint}
-          onClick={() => descargar(a.endpoint, a.etiqueta)}
-          className="flex flex-col items-center gap-2 rounded-lg border border-[#2D3748]/50 bg-[#1A2332]/40 p-3 text-[10px] text-[#9AA0A6] transition-all hover:border-opacity-80 hover:bg-[#1A2332]/70 hover:text-[#E8EAED]"
-          style={{ borderColor: `${a.color}20` }}
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {modulos.map((m) => (
+        <Link
+          key={m.href}
+          href={m.href}
+          className="flex flex-col items-center gap-2 rounded-xl border border-[#2D3748]/50 bg-[#1A2332]/40 p-4 text-center transition-all hover:bg-[#1A2332]/70 hover:border-opacity-80 group"
+          style={{ borderColor: `${m.color}20` }}
         >
-          <a.icono className="h-5 w-5" style={{ color: a.color }} />
-          <span>{a.etiqueta}</span>
-          <Download className="h-3 w-3 opacity-50" />
-        </button>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${m.color}10`, border: `1px solid ${m.color}25` }}>
+            <m.icono className="h-5 w-5 group-hover:scale-110 transition-transform" style={{ color: m.color }} />
+          </div>
+          <span className="text-[11px] font-semibold text-[#E8EAED]">{m.etiqueta}</span>
+          <span className="text-[9px] text-[#5F6368]">{m.desc}</span>
+        </Link>
       ))}
     </div>
   );
@@ -320,13 +288,13 @@ export default function PaginaCapacitacion() {
           </div>
         </div>
 
-        {/* Generadores de contenido */}
+        {/* Modulos Capacitacion 2.0 */}
         <div>
           <h2 className="text-sm font-semibold text-[#E8EAED] mb-3 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#C9A84C]" />
-            Generadores de Contenido Didactico
+            <Zap className="h-4 w-4 text-[#C9A84C]" />
+            Herramientas de Aprendizaje
           </h2>
-          <AccionesRapidas />
+          <ModulosCapacitacion />
         </div>
 
         {/* Disclaimer */}

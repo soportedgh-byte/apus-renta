@@ -459,6 +459,114 @@ export interface MetricasCapacitacion {
   }>;
 }
 
+// === CAPACITACION 2.0 — Aprendizaje adaptativo ===
+
+/** Perfil de estilo de aprendizaje VARK */
+export interface PerfilAprendizaje {
+  tiene_perfil: boolean;
+  usuario_id: number;
+  estilo_predominante?: 'lector' | 'auditivo' | 'visual' | 'kinestesico';
+  puntajes?: Record<string, number>;
+  respuestas?: Record<string, string>;
+  descripcion?: string;
+}
+
+/** Perfil de gamificacion */
+export interface PerfilGamificacion {
+  xp_total: number;
+  nivel: string;
+  racha_dias: number;
+  mejor_racha: number;
+  insignias: Insignia[];
+  ultima_actividad: string | null;
+  xp_siguiente_nivel: number;
+  progreso_nivel: number;
+}
+
+/** Insignia de gamificacion */
+export interface Insignia {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  icono: string;
+  fecha?: string;
+}
+
+/** Resultado de agregar XP */
+export interface ResultadoXP {
+  xp_ganado: number;
+  xp_total: number;
+  nivel: string;
+  subio_nivel: boolean;
+  racha_dias: number;
+  nuevas_insignias: Insignia[];
+  motivo: string;
+}
+
+/** Repaso espaciado pendiente */
+export interface RepasoPendiente {
+  repaso_id: string;
+  leccion_id: string;
+  leccion_titulo: string;
+  fecha_programada: string;
+  intervalo_dias: number;
+  intentos: number;
+}
+
+/** Flashcard */
+export interface Flashcard {
+  frente: string;
+  reverso: string;
+  nivel_bloom: 'recordar' | 'comprender' | 'aplicar' | 'analizar' | 'evaluar' | 'crear';
+  dificultad: 'basica' | 'intermedia' | 'avanzada';
+}
+
+/** Entrada del glosario */
+export interface EntradaGlosario {
+  id: string;
+  termino: string;
+  definicion_simple: string;
+  definicion_tecnica: string;
+  ejemplo: string | null;
+  norma_aplicable: string | null;
+  categoria: string;
+  terminos_relacionados: string[];
+}
+
+/** Simulacion disponible */
+export interface Simulacion {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  direccion: string;
+  total_pasos: number;
+}
+
+/** Paso de simulacion */
+export interface PasoSimulacion {
+  paso: number;
+  titulo: string;
+  total_pasos: number;
+  escenario: string;
+  datos: string[];
+  pregunta: string;
+  opciones: Array<{
+    texto: string;
+    correcta: boolean;
+    retroalimentacion: string;
+  }>;
+  tip: string;
+}
+
+/** Dashboard completo del aprendiz */
+export interface DashboardAprendiz {
+  usuario_id: number;
+  progreso: any;
+  gamificacion: PerfilGamificacion;
+  repasos_pendientes: RepasoPendiente[];
+  total_repasos_pendientes: number;
+}
+
 // === MODELOS Y FINE-TUNING ===
 
 /** Informacion de dependencias de entrenamiento */

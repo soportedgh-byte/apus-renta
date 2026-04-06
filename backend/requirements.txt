@@ -32,3 +32,5 @@ opentelemetry-sdk==1.33.1
 opentelemetry-instrumentation-fastapi==0.54b1
 httpx==0.28.1
 sse-starlette==2.3.3
+edge-tts>=6.1.0
+pydub>=0.25.1
