@@ -261,6 +261,19 @@ Piensalo y me cuentas! 😊
 }
 
 
+def _orm_a_dict(obj: Any) -> dict[str, Any]:
+    """Convierte un objeto ORM de SQLAlchemy a diccionario serializable."""
+    if obj is None:
+        return {}
+    d: dict[str, Any] = {}
+    for col in obj.__table__.columns:
+        val = getattr(obj, col.name, None)
+        if isinstance(val, datetime):
+            val = val.isoformat()
+        d[col.name] = val
+    return d
+
+
 class CapacitacionService:
     """Servicio de gestion de capacitacion y rutas de aprendizaje."""
 
@@ -271,7 +284,7 @@ class CapacitacionService:
 
     async def listar_rutas(
         self, direccion: Optional[str] = None,
-    ) -> list[RutaAprendizaje]:
+    ) -> list[dict[str, Any]]:
         """Lista rutas de aprendizaje activas, filtradas por direccion."""
         query = select(RutaAprendizaje).where(RutaAprendizaje.activa == True)
         if direccion:
@@ -281,48 +294,50 @@ class CapacitacionService:
             )
         query = query.order_by(RutaAprendizaje.orden)
         resultado = await self._db.execute(query)
-        return list(resultado.scalars().all())
+        return [_orm_a_dict(r) for r in resultado.scalars().all()]
 
-    async def obtener_ruta(self, ruta_id: str) -> Optional[RutaAprendizaje]:
+    async def obtener_ruta(self, ruta_id: str) -> Optional[dict[str, Any]]:
         """Obtiene una ruta por ID."""
         resultado = await self._db.execute(
             select(RutaAprendizaje).where(RutaAprendizaje.id == ruta_id)
         )
-        return resultado.scalar_one_or_none()
+        obj = resultado.scalar_one_or_none()
+        return _orm_a_dict(obj) if obj else None
 
     # ── Lecciones ──────────────────────────────────────────────────────────
 
-    async def listar_lecciones(self, ruta_id: str) -> list[Leccion]:
+    async def listar_lecciones(self, ruta_id: str) -> list[dict[str, Any]]:
         """Lista lecciones de una ruta ordenadas."""
         resultado = await self._db.execute(
             select(Leccion)
             .where(Leccion.ruta_id == ruta_id)
             .order_by(Leccion.orden, Leccion.numero)
         )
-        return list(resultado.scalars().all())
+        return [_orm_a_dict(l) for l in resultado.scalars().all()]
 
-    async def obtener_leccion(self, leccion_id: str) -> Optional[Leccion]:
-        """Obtiene una leccion por ID."""
+    async def obtener_leccion(self, leccion_id: str) -> Optional[dict[str, Any]]:
+        """Obtiene una leccion por ID con contenido Markdown."""
         resultado = await self._db.execute(
             select(Leccion).where(Leccion.id == leccion_id)
         )
-        return resultado.scalar_one_or_none()
+        obj = resultado.scalar_one_or_none()
+        return _orm_a_dict(obj) if obj else None
 
     # ── Progreso ──────────────────────────────────────────────────────────
 
     async def obtener_progreso_usuario(
         self, usuario_id: int, ruta_id: Optional[str] = None,
-    ) -> list[ProgresoUsuario]:
+    ) -> list[dict[str, Any]]:
         """Obtiene el progreso de un usuario, opcionalmente filtrado por ruta."""
         query = select(ProgresoUsuario).where(ProgresoUsuario.usuario_id == usuario_id)
         if ruta_id:
             query = query.where(ProgresoUsuario.ruta_id == ruta_id)
         resultado = await self._db.execute(query)
-        return list(resultado.scalars().all())
+        return [_orm_a_dict(p) for p in resultado.scalars().all()]
 
     async def marcar_leccion_completada(
         self, usuario_id: int, ruta_id: str, leccion_id: str,
-    ) -> ProgresoUsuario:
+    ) -> dict[str, Any]:
         """Marca una leccion como completada."""
         # Buscar progreso existente
         resultado = await self._db.execute(
@@ -348,7 +363,7 @@ class CapacitacionService:
             self._db.add(progreso)
 
         await self._db.flush()
-        return progreso
+        return _orm_a_dict(progreso)
 
     async def obtener_resumen_progreso(
         self, usuario_id: int,
@@ -359,26 +374,28 @@ class CapacitacionService:
 
         completadas_por_ruta: dict[str, int] = {}
         for p in progreso_total:
-            if p.completada:
-                completadas_por_ruta[p.ruta_id] = completadas_por_ruta.get(p.ruta_id, 0) + 1
+            if p.get("completada"):
+                rid = p.get("ruta_id", "")
+                completadas_por_ruta[rid] = completadas_por_ruta.get(rid, 0) + 1
 
         resumen_rutas = []
         total_lecciones = 0
         total_completadas = 0
 
         for ruta in rutas:
-            lecciones = await self.listar_lecciones(ruta.id)
+            ruta_id = ruta["id"]
+            lecciones = await self.listar_lecciones(ruta_id)
             n_lecciones = len(lecciones)
-            n_completadas = completadas_por_ruta.get(ruta.id, 0)
+            n_completadas = completadas_por_ruta.get(ruta_id, 0)
             total_lecciones += n_lecciones
             total_completadas += n_completadas
 
             resumen_rutas.append({
-                "ruta_id": ruta.id,
-                "nombre": ruta.nombre,
-                "icono": ruta.icono,
-                "color": ruta.color,
-                "direccion": ruta.direccion,
+                "ruta_id": ruta_id,
+                "nombre": ruta["nombre"],
+                "icono": ruta.get("icono", ""),
+                "color": ruta.get("color", ""),
+                "direccion": ruta.get("direccion", ""),
                 "total_lecciones": n_lecciones,
                 "completadas": n_completadas,
                 "porcentaje": round(n_completadas / n_lecciones * 100) if n_lecciones > 0 else 0,
@@ -411,7 +428,7 @@ class CapacitacionService:
         puntaje: float,
         total_preguntas: int,
         respuestas: list[dict[str, Any]],
-    ) -> QuizResultado:
+    ) -> dict[str, Any]:
         """Registra el resultado de un quiz."""
         aprobado = puntaje >= 70.0
 
@@ -432,18 +449,18 @@ class CapacitacionService:
             "Quiz ruta %s usuario %d: %.1f%% (%s)",
             ruta_id, usuario_id, puntaje, "APROBADO" if aprobado else "NO APROBADO",
         )
-        return quiz
+        return _orm_a_dict(quiz)
 
     async def obtener_quizzes_usuario(
         self, usuario_id: int, ruta_id: Optional[str] = None,
-    ) -> list[QuizResultado]:
+    ) -> list[dict[str, Any]]:
         """Lista quizzes de un usuario."""
         query = select(QuizResultado).where(QuizResultado.usuario_id == usuario_id)
         if ruta_id:
             query = query.where(QuizResultado.ruta_id == ruta_id)
         query = query.order_by(QuizResultado.created_at.desc())
         resultado = await self._db.execute(query)
-        return list(resultado.scalars().all())
+        return [_orm_a_dict(q) for q in resultado.scalars().all()]
 
     # ── Metricas (solo directores/admin) ────────────────────────────────────
 

@@ -362,3 +362,60 @@ async def logout(
         pass
 
     return RespuestaLogout(mensaje="Sesion cerrada correctamente.")
+
+
+# ── Cambio de contrasena ───────────────────────────────────────────────────
+
+
+class SolicitudCambioContrasena(BaseModel):
+    contrasena_actual: str = Field(..., min_length=1)
+    contrasena_nueva: str = Field(..., min_length=8, max_length=128)
+
+
+class RespuestaCambioContrasena(BaseModel):
+    mensaje: str
+    exito: bool
+
+
+@enrutador.post(
+    "/cambiar-contrasena",
+    response_model=RespuestaCambioContrasena,
+    summary="Cambiar contrasena del usuario autenticado",
+)
+async def cambiar_contrasena(
+    solicitud: SolicitudCambioContrasena,
+    credenciales: HTTPAuthorizationCredentials = Depends(esquema_bearer),
+    db: AsyncSession = Depends(obtener_sesion),
+) -> RespuestaCambioContrasena:
+    """Permite al usuario cambiar su contrasena.
+
+    Requiere la contrasena actual para verificacion.
+    La nueva contrasena debe tener al menos 8 caracteres.
+    """
+    try:
+        payload: dict[str, Any] = verificar_token(credenciales.credentials)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token invalido o expirado.")
+
+    usuario_id: int = int(payload.get("sub", 0))
+    resultado = await db.execute(select(Usuario).where(Usuario.id == usuario_id))
+    usuario = resultado.scalar_one_or_none()
+
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    # Verificar contrasena actual
+    if not contexto_cripto.verify(solicitud.contrasena_actual, usuario.password_hash):
+        raise HTTPException(status_code=400, detail="La contrasena actual es incorrecta.")
+
+    # Actualizar contrasena
+    nuevo_hash = contexto_cripto.hash(solicitud.contrasena_nueva)
+    await db.execute(
+        update(Usuario).where(Usuario.id == usuario_id).values(password_hash=nuevo_hash)
+    )
+    await db.commit()
+
+    return RespuestaCambioContrasena(
+        mensaje="Contrasena actualizada exitosamente.",
+        exito=True,
+    )

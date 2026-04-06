@@ -213,7 +213,7 @@ export default function PaginaMiPerfil() {
                       {perfil.direccion === 'DES' ? 'Estudios Sectoriales' : 'Vigilancia Fiscal'}
                     </Insignia>
                   )}
-                  <Insignia variante={perfil.activo ? 'exito' : 'error'}>
+                  <Insignia variante={perfil.activo ? 'exito' : 'rojo'}>
                     {perfil.activo ? 'Activo' : 'Inactivo'}
                   </Insignia>
                 </div>
@@ -330,7 +330,7 @@ export default function PaginaMiPerfil() {
                     variante="primario"
                     tamano="sm"
                     onClick={cambiarContrasena}
-                    deshabilitado={guardando}
+                    disabled={guardando}
                     className="flex-1 text-[10px]"
                   >
                     {guardando ? 'Guardando...' : 'Guardar'}

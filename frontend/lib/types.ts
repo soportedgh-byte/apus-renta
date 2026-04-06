@@ -261,21 +261,48 @@ export interface Formato {
   fecha_generacion: string;
 }
 
-// === OBSERVATORIO (DES) ===
+// === OBSERVATORIO TIC (DES) ===
 
-/** Alerta del observatorio sectorial */
+/** Alerta del Observatorio TIC clasificada por IA */
 export interface AlertaObservatorio {
   id: string;
+  tipo: 'REGULATORIA' | 'LEGISLATIVA' | 'NOTICIA' | 'INDICADOR';
   titulo: string;
-  sector: string;
-  severidad: 'baja' | 'media' | 'alta' | 'critica';
-  descripcion: string;
-  indicadores: IndicadorSectorial[];
+  resumen: string;
+  fuente_url: string;
+  fuente_nombre: string;
+  relevancia: 'ALTA' | 'MEDIA' | 'BAJA';
+  tipo_impacto: 'presupuestal' | 'regulatorio' | 'contractual';
+  entidades_afectadas: string[];
+  estado: 'NUEVA' | 'VISTA' | 'EN_ANALISIS' | 'ARCHIVADA';
+  asignada_a: number | null;
   fecha_deteccion: string;
-  estado: 'nueva' | 'en_analisis' | 'resuelta';
+  fecha_publicacion: string | null;
+  hash_contenido: string;
+  metadata_extra: Record<string, unknown> | null;
+  created_at: string;
 }
 
-/** Indicador sectorial para el observatorio */
+/** Contadores del dashboard del observatorio */
+export interface ContadoresObservatorio {
+  total: number;
+  por_estado: Record<string, number>;
+  por_tipo: Record<string, number>;
+  por_relevancia: Record<string, number>;
+  por_fuente: Record<string, number>;
+  nuevas: number;
+  en_analisis: number;
+}
+
+/** Estadisticas del observatorio para graficos */
+export interface EstadisticasObservatorio {
+  periodo_dias: number;
+  timeline: { fecha: string; total: number }[];
+  top_entidades: { nombre: string; alertas: number }[];
+  fuentes: { nombre: string; alertas: number; ultima_deteccion: string | null }[];
+}
+
+/** Indicador sectorial para el observatorio (legacy) */
 export interface IndicadorSectorial {
   nombre: string;
   valor_actual: number;

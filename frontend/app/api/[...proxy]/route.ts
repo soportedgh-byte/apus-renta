@@ -52,7 +52,23 @@ async function proxyPeticion(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // Respuesta normal JSON
+    // Respuesta binaria (DOCX, PDF, etc.)
+    if (
+      contentType?.includes('application/vnd.openxmlformats') ||
+      contentType?.includes('application/octet-stream') ||
+      contentType?.includes('application/pdf') ||
+      contentType?.includes('application/zip')
+    ) {
+      const datos = await respuesta.arrayBuffer();
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
+      };
+      const disposition = respuesta.headers.get('content-disposition');
+      if (disposition) headers['Content-Disposition'] = disposition;
+      return new NextResponse(datos, { status: respuesta.status, headers });
+    }
+
+    // Respuesta normal JSON/texto
     const datos = await respuesta.text();
 
     return new NextResponse(datos, {

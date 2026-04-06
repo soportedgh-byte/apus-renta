@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import obtener_sesion_db
@@ -179,12 +180,40 @@ async def listar_usuarios(
             detail=f"Dirección inválida. Válidas: {sorted(DIRECCIONES_VALIDAS)}",
         )
 
-    # TODO: Implementar consulta real a la tabla de usuarios
     logger.info(
         "Admin: listando usuarios (rol=%s, direccion=%s, activo=%s) por usuario=%d",
         rol, direccion, activo, usuario_id,
     )
-    return []
+
+    from app.models.usuario import Usuario as UsuarioModelo
+
+    query = select(UsuarioModelo)
+    if rol:
+        query = query.where(UsuarioModelo.rol == rol)
+    if direccion:
+        query = query.where(UsuarioModelo.direccion == direccion)
+    if activo is not None:
+        query = query.where(UsuarioModelo.activo == activo)
+    query = query.order_by(UsuarioModelo.id).offset(desplazamiento).limit(limite)
+
+    resultado = await db.execute(query)
+    usuarios = resultado.scalars().all()
+
+    return [
+        {
+            "id": u.id,
+            "usuario": u.usuario,
+            "nombre_completo": u.nombre_completo,
+            "email": u.email,
+            "rol": u.rol.value if hasattr(u.rol, "value") else u.rol,
+            "direccion": (u.direccion.value if u.direccion and hasattr(u.direccion, "value") else u.direccion),
+            "activo": u.activo,
+            "creado_en": u.created_at.isoformat() if u.created_at else None,
+            "actualizado_en": u.updated_at.isoformat() if u.updated_at else None,
+            "ultimo_acceso": u.ultimo_acceso.isoformat() if u.ultimo_acceso else None,
+        }
+        for u in usuarios
+    ]
 
 
 @enrutador.post(

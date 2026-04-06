@@ -1,76 +1,155 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Eye,
   AlertTriangle,
   TrendingUp,
-  TrendingDown,
-  Minus,
   BarChart3,
   Activity,
   ShieldAlert,
+  FileSearch,
+  Newspaper,
+  Gavel,
+  Radio,
+  RefreshCw,
+  ExternalLink,
+  MessageSquare,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Building2,
+  Zap,
+  Archive,
+  CheckCircle,
 } from 'lucide-react';
 import { Tarjeta } from '@/components/ui/card';
+import { Boton } from '@/components/ui/button';
 import { Insignia } from '@/components/ui/badge';
-import { obtenerDireccionActiva } from '@/lib/auth';
-import type { AlertaObservatorio, IndicadorSectorial } from '@/lib/types';
+import { apiCliente } from '@/lib/api';
+import { obtenerDireccionActiva, obtenerUsuario } from '@/lib/auth';
+import type { AlertaObservatorio, ContadoresObservatorio } from '@/lib/types';
 
-/**
- * Pagina del Observatorio Sectorial (solo DES)
- * Muestra alertas, indicadores sectoriales y analisis macro
- */
+// ── Constantes de UI ────────────────────────────────────────────────────────
+
+const ICONOS_TIPO: Record<string, React.ReactNode> = {
+  REGULATORIA: <Gavel className="h-4 w-4" />,
+  LEGISLATIVA: <FileSearch className="h-4 w-4" />,
+  NOTICIA: <Newspaper className="h-4 w-4" />,
+  INDICADOR: <Activity className="h-4 w-4" />,
+};
+
+const COLORES_RELEVANCIA = {
+  ALTA: { bg: 'bg-red-500/10', texto: 'text-red-400', borde: 'border-red-500/30', variante: 'rojo' as const },
+  MEDIA: { bg: 'bg-yellow-500/10', texto: 'text-yellow-400', borde: 'border-yellow-500/30', variante: 'amarillo' as const },
+  BAJA: { bg: 'bg-green-500/10', texto: 'text-green-400', borde: 'border-green-500/30', variante: 'exito' as const },
+};
+
+const COLORES_ESTADO = {
+  NUEVA: { bg: 'bg-blue-500/10', texto: 'text-blue-400', variante: 'info' as const },
+  VISTA: { bg: 'bg-gray-500/10', texto: 'text-gray-400', variante: 'gris' as const },
+  EN_ANALISIS: { bg: 'bg-yellow-500/10', texto: 'text-yellow-400', variante: 'amarillo' as const },
+  ARCHIVADA: { bg: 'bg-gray-500/10', texto: 'text-gray-500', variante: 'gris' as const },
+};
+
+const NOMBRES_TIPO: Record<string, string> = {
+  REGULATORIA: 'Regulatoria',
+  LEGISLATIVA: 'Legislativa',
+  NOTICIA: 'Noticia',
+  INDICADOR: 'Indicador',
+};
+
+const NOMBRES_IMPACTO: Record<string, string> = {
+  presupuestal: 'Presupuestal',
+  regulatorio: 'Regulatorio',
+  contractual: 'Contractual',
+};
+
+// ── Componente principal ────────────────────────────────────────────────────
+
 export default function PaginaObservatorio() {
   const [direccion, setDireccion] = useState<string | null>(null);
   const [alertas, setAlertas] = useState<AlertaObservatorio[]>([]);
+  const [contadores, setContadores] = useState<ContadoresObservatorio | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [ejecutandoCrawl, setEjecutandoCrawl] = useState(false);
+  const [alertaExpandida, setAlertaExpandida] = useState<string | null>(null);
+
+  // Filtros
+  const [filtroTipo, setFiltroTipo] = useState<string>('');
+  const [filtroRelevancia, setFiltroRelevancia] = useState<string>('');
+  const [filtroEstado, setFiltroEstado] = useState<string>('');
+  const [filtroFuente, setFiltroFuente] = useState<string>('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  // ── Carga de datos ──────────────────────────────────────────────────────
+
+  const cargarDatos = useCallback(async () => {
+    setCargando(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtroTipo) params.set('tipo', filtroTipo);
+      if (filtroRelevancia) params.set('relevancia', filtroRelevancia);
+      if (filtroEstado) params.set('estado', filtroEstado);
+      if (filtroFuente) params.set('fuente', filtroFuente);
+      params.set('limite', '50');
+
+      const [alertasData, contadoresData] = await Promise.all([
+        apiCliente.get<AlertaObservatorio[]>(`/observatorio/alertas?${params.toString()}`),
+        apiCliente.get<ContadoresObservatorio>('/observatorio/alertas/contadores'),
+      ]);
+      setAlertas(alertasData);
+      setContadores(contadoresData);
+    } catch {
+      // Si no hay datos, usar valores vacios
+      setAlertas([]);
+      setContadores({ total: 0, por_estado: {}, por_tipo: {}, por_relevancia: {}, por_fuente: {}, nuevas: 0, en_analisis: 0 });
+    } finally {
+      setCargando(false);
+    }
+  }, [filtroTipo, filtroRelevancia, filtroEstado, filtroFuente]);
 
   useEffect(() => {
     setDireccion(obtenerDireccionActiva());
+    cargarDatos();
+  }, [cargarDatos]);
 
-    // Datos de ejemplo
-    setAlertas([
-      {
-        id: '1',
-        titulo: 'Subejecucion presupuestal critica en el sector TIC',
-        sector: 'Tecnologias de la Informacion',
-        severidad: 'alta',
-        descripcion: 'Se detecta una subejecucion del 45% en el presupuesto de inversion del sector TIC al corte del tercer trimestre, significativamente por debajo del promedio historico del 28%.',
-        indicadores: [
-          { nombre: 'Ejecucion presupuestal', valor_actual: 55, valor_anterior: 72, unidad: '%', tendencia: 'baja' },
-          { nombre: 'Contratos en ejecucion', valor_actual: 23, valor_anterior: 45, unidad: 'contratos', tendencia: 'baja' },
-        ],
-        fecha_deteccion: '2025-10-15T08:00:00Z',
-        estado: 'en_analisis',
-      },
-      {
-        id: '2',
-        titulo: 'Incremento atipico en contratacion directa - Sector Salud',
-        sector: 'Salud',
-        severidad: 'media',
-        descripcion: 'La contratacion directa en el sector salud aumento un 30% respecto al mismo periodo del ano anterior, superando los umbrales normales establecidos.',
-        indicadores: [
-          { nombre: 'Contratacion directa', valor_actual: 892, valor_anterior: 686, unidad: 'contratos', tendencia: 'alza' },
-          { nombre: 'Valor promedio contrato', valor_actual: 450, valor_anterior: 320, unidad: 'M COP', tendencia: 'alza' },
-        ],
-        fecha_deteccion: '2025-10-10T14:00:00Z',
-        estado: 'nueva',
-      },
-      {
-        id: '3',
-        titulo: 'Mejora sostenida en rendicion de cuentas - Sector Educacion',
-        sector: 'Educacion',
-        severidad: 'baja',
-        descripcion: 'El indice de rendicion de cuentas del sector educacion ha mejorado consistentemente en los ultimos 3 trimestres, alcanzando un nivel satisfactorio.',
-        indicadores: [
-          { nombre: 'Indice rendicion de cuentas', valor_actual: 87, valor_anterior: 78, unidad: '%', tendencia: 'alza' },
-        ],
-        fecha_deteccion: '2025-10-08T10:00:00Z',
-        estado: 'resuelta',
-      },
-    ]);
-  }, []);
+  // ── Acciones ────────────────────────────────────────────────────────────
 
-  // Verificar acceso DES
+  const ejecutarCrawl = async () => {
+    setEjecutandoCrawl(true);
+    try {
+      await apiCliente.post('/observatorio/crawl', {});
+      await cargarDatos();
+    } catch {
+      // silenciar
+    } finally {
+      setEjecutandoCrawl(false);
+    }
+  };
+
+  const cambiarEstado = async (alertaId: string, nuevoEstado: string) => {
+    try {
+      await apiCliente.put(`/observatorio/alertas/${alertaId}/estado`, { estado: nuevoEstado });
+      await cargarDatos();
+    } catch {
+      // silenciar
+    }
+  };
+
+  const iniciarAnalisis = (alerta: AlertaObservatorio) => {
+    // Cambiar estado a EN_ANALISIS
+    cambiarEstado(alerta.id, 'EN_ANALISIS');
+    // Redirigir al chat con contexto de la alerta
+    const contexto = encodeURIComponent(
+      `Analiza esta alerta del Observatorio TIC:\n\nTitulo: ${alerta.titulo}\nTipo: ${alerta.tipo}\nRelevancia: ${alerta.relevancia}\nFuente: ${alerta.fuente_nombre}\nResumen: ${alerta.resumen}\nEntidades: ${(alerta.entidades_afectadas || []).join(', ')}\nURL: ${alerta.fuente_url}\n\nPor favor realiza un analisis detallado de esta alerta desde la perspectiva de control fiscal.`
+    );
+    window.location.href = `/chat?contexto=${contexto}`;
+  };
+
+  // ── Verificar acceso DES ────────────────────────────────────────────────
+
   if (direccion && direccion !== 'DES') {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -80,7 +159,7 @@ export default function PaginaObservatorio() {
             Acceso restringido
           </h2>
           <p className="text-sm text-[#9AA0A6] mb-1">
-            El Observatorio Sectorial esta disponible unicamente para la
+            El Observatorio TIC esta disponible unicamente para la
             Direccion de Estudios Sectoriales (DES).
           </p>
           <p className="text-xs text-[#5F6368]">
@@ -91,113 +170,331 @@ export default function PaginaObservatorio() {
     );
   }
 
-  const colorSeveridad = {
-    baja: { bg: 'bg-green-500/10', texto: 'text-green-400', borde: 'border-green-500/30' },
-    media: { bg: 'bg-yellow-500/10', texto: 'text-yellow-400', borde: 'border-yellow-500/30' },
-    alta: { bg: 'bg-orange-500/10', texto: 'text-orange-400', borde: 'border-orange-500/30' },
-    critica: { bg: 'bg-red-500/10', texto: 'text-red-400', borde: 'border-red-500/30' },
-  };
+  if (cargando) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
+      </div>
+    );
+  }
 
-  const iconoTendencia = {
-    alza: <TrendingUp className="h-3 w-3 text-green-400" />,
-    baja: <TrendingDown className="h-3 w-3 text-red-400" />,
-    estable: <Minus className="h-3 w-3 text-[#5F6368]" />,
-  };
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="font-titulo text-xl font-bold text-[#E8EAED] flex items-center gap-2">
-          <Eye className="h-6 w-6 text-[#1A5276]" />
-          Observatorio Sectorial
-        </h1>
-        <p className="mt-1 text-xs text-[#5F6368]">
-          Alertas tempranas, indicadores macroeconomicos y vigilancia sectorial — DES
-        </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="font-titulo text-xl font-bold text-[#E8EAED] flex items-center gap-2">
+            <Eye className="h-6 w-6 text-[#1A5276]" />
+            Observatorio TIC
+          </h1>
+          <p className="mt-1 text-xs text-[#5F6368]">
+            Alertas inteligentes del sector TIC colombiano clasificadas por IA — DES
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Boton
+            variante="secundario"
+            tamano="sm"
+            onClick={() => setMostrarFiltros(!mostrarFiltros)}
+            className="text-[10px]"
+          >
+            <Filter className="h-3 w-3 mr-1" />
+            Filtros
+          </Boton>
+          <Boton
+            variante="primario"
+            tamano="sm"
+            onClick={ejecutarCrawl}
+            disabled={ejecutandoCrawl}
+            className="text-[10px]"
+          >
+            <RefreshCw className={`h-3 w-3 mr-1 ${ejecutandoCrawl ? 'animate-spin' : ''}`} />
+            {ejecutandoCrawl ? 'Escaneando...' : 'Ejecutar crawl'}
+          </Boton>
+        </div>
       </div>
 
-      {/* Resumen de indicadores */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {/* Contadores */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         {[
-          { titulo: 'Alertas activas', valor: '5', icono: AlertTriangle, color: '#C9A84C' },
-          { titulo: 'Sectores monitoreados', valor: '18', icono: BarChart3, color: '#2471A3' },
-          { titulo: 'Indicadores rastreados', valor: '142', icono: Activity, color: '#27AE60' },
-          { titulo: 'Riesgo promedio', valor: 'Medio', icono: ShieldAlert, color: '#F39C12' },
-        ].map((indicador) => (
-          <Tarjeta key={indicador.titulo} className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg"
-                style={{ backgroundColor: `${indicador.color}15` }}>
-                <indicador.icono className="h-5 w-5" style={{ color: indicador.color }} />
+          { titulo: 'Total alertas', valor: contadores?.total ?? 0, icono: Activity, color: '#C9A84C' },
+          { titulo: 'Nuevas', valor: contadores?.nuevas ?? 0, icono: Zap, color: '#3B82F6' },
+          { titulo: 'En analisis', valor: contadores?.en_analisis ?? 0, icono: FileSearch, color: '#F59E0B' },
+          { titulo: 'Alta relevancia', valor: contadores?.por_relevancia?.ALTA ?? 0, icono: AlertTriangle, color: '#EF4444' },
+          { titulo: 'Fuentes activas', valor: Object.keys(contadores?.por_fuente ?? {}).length, icono: Radio, color: '#10B981' },
+        ].map((ind) => (
+          <Tarjeta key={ind.titulo} className="p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={{ backgroundColor: `${ind.color}15` }}>
+                <ind.icono className="h-4 w-4" style={{ color: ind.color }} />
               </div>
               <div>
-                <p className="text-[10px] text-[#5F6368]">{indicador.titulo}</p>
-                <p className="text-lg font-bold text-[#E8EAED]">{indicador.valor}</p>
+                <p className="text-[9px] text-[#5F6368] uppercase tracking-wider">{ind.titulo}</p>
+                <p className="text-lg font-bold text-[#E8EAED]">{ind.valor}</p>
               </div>
             </div>
           </Tarjeta>
         ))}
       </div>
 
-      {/* Alertas */}
-      <h2 className="font-titulo text-lg font-semibold text-[#E8EAED] mb-4">
-        Alertas recientes
-      </h2>
-      <div className="space-y-4">
-        {alertas.map((alerta) => {
-          const sev = colorSeveridad[alerta.severidad];
-          return (
-            <Tarjeta key={alerta.id} className={`${sev.borde} border hover:border-opacity-60 transition-all`}>
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className={`h-4 w-4 ${sev.texto}`} />
-                      <h3 className="text-sm font-medium text-[#E8EAED]">
-                        {alerta.titulo}
-                      </h3>
-                    </div>
-                    <p className="text-xs text-[#9AA0A6] leading-relaxed">
-                      {alerta.descripcion}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <Insignia
-                      variante={
-                        alerta.severidad === 'critica' || alerta.severidad === 'alta' ? 'rojo'
-                          : alerta.severidad === 'media' ? 'amarillo' : 'exito'
-                      }
-                    >
-                      {alerta.severidad.charAt(0).toUpperCase() + alerta.severidad.slice(1)}
-                    </Insignia>
-                    <Insignia variante="gris">{alerta.sector}</Insignia>
-                  </div>
-                </div>
+      {/* Panel de filtros */}
+      {mostrarFiltros && (
+        <Tarjeta className="p-4 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="text-[10px] text-[#5F6368] uppercase tracking-wider mb-1 block">Tipo</label>
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                className="w-full rounded-md border border-[#2D3748] bg-[#0F1419] px-2 py-1.5 text-xs text-[#E8EAED] focus:border-[#C9A84C] focus:outline-none"
+              >
+                <option value="">Todos</option>
+                <option value="REGULATORIA">Regulatoria</option>
+                <option value="LEGISLATIVA">Legislativa</option>
+                <option value="NOTICIA">Noticia</option>
+                <option value="INDICADOR">Indicador</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5F6368] uppercase tracking-wider mb-1 block">Relevancia</label>
+              <select
+                value={filtroRelevancia}
+                onChange={(e) => setFiltroRelevancia(e.target.value)}
+                className="w-full rounded-md border border-[#2D3748] bg-[#0F1419] px-2 py-1.5 text-xs text-[#E8EAED] focus:border-[#C9A84C] focus:outline-none"
+              >
+                <option value="">Todas</option>
+                <option value="ALTA">Alta</option>
+                <option value="MEDIA">Media</option>
+                <option value="BAJA">Baja</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5F6368] uppercase tracking-wider mb-1 block">Estado</label>
+              <select
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                className="w-full rounded-md border border-[#2D3748] bg-[#0F1419] px-2 py-1.5 text-xs text-[#E8EAED] focus:border-[#C9A84C] focus:outline-none"
+              >
+                <option value="">Todos</option>
+                <option value="NUEVA">Nueva</option>
+                <option value="VISTA">Vista</option>
+                <option value="EN_ANALISIS">En analisis</option>
+                <option value="ARCHIVADA">Archivada</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-[#5F6368] uppercase tracking-wider mb-1 block">Fuente</label>
+              <select
+                value={filtroFuente}
+                onChange={(e) => setFiltroFuente(e.target.value)}
+                className="w-full rounded-md border border-[#2D3748] bg-[#0F1419] px-2 py-1.5 text-xs text-[#E8EAED] focus:border-[#C9A84C] focus:outline-none"
+              >
+                <option value="">Todas</option>
+                <option value="MinTIC">MinTIC</option>
+                <option value="CRC">CRC</option>
+                <option value="ANE">ANE</option>
+                <option value="Congreso">Congreso</option>
+                <option value="Noticias">Noticias TIC</option>
+              </select>
+            </div>
+          </div>
+        </Tarjeta>
+      )}
 
-                {/* Indicadores */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 pt-3 border-t border-[#2D3748]/30">
-                  {alerta.indicadores.map((ind, idx) => (
-                    <div key={idx} className="rounded-lg bg-[#0A0F14]/60 p-2.5">
-                      <p className="text-[10px] text-[#5F6368] mb-1">{ind.nombre}</p>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-bold text-[#E8EAED]">
-                          {ind.valor_actual}
-                        </span>
-                        <span className="text-[10px] text-[#5F6368]">{ind.unidad}</span>
-                        {iconoTendencia[ind.tendencia]}
+      {/* Distribucion por tipo (mini graficos) */}
+      {contadores && contadores.total > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {Object.entries(contadores.por_tipo).map(([tipo, cantidad]) => {
+            const porcentaje = contadores.total > 0 ? Math.round((cantidad / contadores.total) * 100) : 0;
+            return (
+              <Tarjeta key={tipo} className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    {ICONOS_TIPO[tipo]}
+                    <span className="text-[10px] font-medium text-[#9AA0A6]">{NOMBRES_TIPO[tipo] || tipo}</span>
+                  </div>
+                  <span className="text-xs font-bold text-[#E8EAED]">{cantidad}</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-[#2D3748]/50">
+                  <div
+                    className="h-full rounded-full bg-[#C9A84C]"
+                    style={{ width: `${porcentaje}%` }}
+                  />
+                </div>
+              </Tarjeta>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Timeline de alertas */}
+      <h2 className="font-titulo text-sm font-semibold text-[#E8EAED] mb-3 flex items-center gap-2">
+        <Clock className="h-4 w-4 text-[#C9A84C]" />
+        Alertas recientes ({alertas.length})
+      </h2>
+
+      {alertas.length === 0 ? (
+        <Tarjeta className="p-8 text-center">
+          <Eye className="mx-auto h-12 w-12 text-[#2D3748] mb-3" />
+          <p className="text-sm text-[#9AA0A6] mb-1">No hay alertas{filtroTipo || filtroRelevancia || filtroEstado ? ' con los filtros seleccionados' : ' aun'}.</p>
+          <p className="text-xs text-[#5F6368]">
+            Ejecute un crawl para monitorear las fuentes TIC.
+          </p>
+        </Tarjeta>
+      ) : (
+        <div className="space-y-3">
+          {alertas.map((alerta) => {
+            const rel = COLORES_RELEVANCIA[alerta.relevancia] || COLORES_RELEVANCIA.BAJA;
+            const est = COLORES_ESTADO[alerta.estado] || COLORES_ESTADO.NUEVA;
+            const expandida = alertaExpandida === alerta.id;
+
+            return (
+              <Tarjeta
+                key={alerta.id}
+                className={`${rel.borde} border hover:border-opacity-60 transition-all cursor-pointer`}
+                onClick={() => setAlertaExpandida(expandida ? null : alerta.id)}
+              >
+                <div className="p-4">
+                  {/* Header de alerta */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={rel.texto}>{ICONOS_TIPO[alerta.tipo]}</span>
+                        <h3 className="text-sm font-medium text-[#E8EAED] truncate">
+                          {alerta.titulo}
+                        </h3>
                       </div>
-                      <p className="text-[9px] text-[#5F6368] mt-0.5">
-                        Anterior: {ind.valor_anterior} {ind.unidad}
+                      <p className="text-xs text-[#9AA0A6] line-clamp-2 leading-relaxed">
+                        {alerta.resumen}
                       </p>
                     </div>
-                  ))}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <Insignia variante={rel.variante}>
+                        {alerta.relevancia}
+                      </Insignia>
+                      <Insignia variante={est.variante}>
+                        {alerta.estado.replace('_', ' ')}
+                      </Insignia>
+                      {expandida ? (
+                        <ChevronUp className="h-3 w-3 text-[#5F6368]" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-[#5F6368]" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tags rapidos */}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[9px] text-[#5F6368] flex items-center gap-1">
+                      <Radio className="h-2.5 w-2.5" /> {alerta.fuente_nombre}
+                    </span>
+                    <span className="text-[9px] text-[#5F6368]">|</span>
+                    <span className="text-[9px] text-[#5F6368]">
+                      {NOMBRES_TIPO[alerta.tipo]} · {NOMBRES_IMPACTO[alerta.tipo_impacto] || alerta.tipo_impacto}
+                    </span>
+                    <span className="text-[9px] text-[#5F6368]">|</span>
+                    <span className="text-[9px] text-[#5F6368] flex items-center gap-1">
+                      <Clock className="h-2.5 w-2.5" />
+                      {new Date(alerta.fecha_deteccion).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  {/* Detalle expandido */}
+                  {expandida && (
+                    <div className="mt-4 pt-3 border-t border-[#2D3748]/30 space-y-3" onClick={(e) => e.stopPropagation()}>
+                      {/* Entidades afectadas */}
+                      {alerta.entidades_afectadas && alerta.entidades_afectadas.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-[#5F6368] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                            <Building2 className="h-3 w-3" /> Entidades afectadas
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {alerta.entidades_afectadas.map((entidad, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#1A5276]/20 text-[#5DADE2] border border-[#1A5276]/30"
+                              >
+                                {entidad}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Impacto */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-lg bg-[#0A0F14]/60 p-2.5">
+                          <p className="text-[9px] text-[#5F6368] mb-0.5">Tipo impacto</p>
+                          <p className="text-xs font-medium text-[#E8EAED]">
+                            {NOMBRES_IMPACTO[alerta.tipo_impacto] || alerta.tipo_impacto}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-[#0A0F14]/60 p-2.5">
+                          <p className="text-[9px] text-[#5F6368] mb-0.5">Relevancia</p>
+                          <p className={`text-xs font-medium ${rel.texto}`}>{alerta.relevancia}</p>
+                        </div>
+                        <div className="rounded-lg bg-[#0A0F14]/60 p-2.5">
+                          <p className="text-[9px] text-[#5F6368] mb-0.5">Fuente</p>
+                          <p className="text-xs font-medium text-[#E8EAED]">{alerta.fuente_nombre}</p>
+                        </div>
+                      </div>
+
+                      {/* Acciones */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <Boton
+                          variante="primario"
+                          tamano="sm"
+                          onClick={() => iniciarAnalisis(alerta)}
+                          className="text-[10px]"
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Iniciar analisis
+                        </Boton>
+                        {alerta.fuente_url && (
+                          <Boton
+                            variante="secundario"
+                            tamano="sm"
+                            onClick={() => window.open(alerta.fuente_url, '_blank')}
+                            className="text-[10px]"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Ver fuente
+                          </Boton>
+                        )}
+                        {alerta.estado === 'NUEVA' && (
+                          <Boton
+                            variante="fantasma"
+                            tamano="sm"
+                            onClick={() => cambiarEstado(alerta.id, 'VISTA')}
+                            className="text-[10px]"
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Marcar vista
+                          </Boton>
+                        )}
+                        {alerta.estado !== 'ARCHIVADA' && (
+                          <Boton
+                            variante="fantasma"
+                            tamano="sm"
+                            onClick={() => cambiarEstado(alerta.id, 'ARCHIVADA')}
+                            className="text-[10px]"
+                          >
+                            <Archive className="h-3 w-3 mr-1" />
+                            Archivar
+                          </Boton>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </Tarjeta>
-          );
-        })}
-      </div>
+              </Tarjeta>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ from app.models.hallazgo import Hallazgo
 from app.models.auditoria import Auditoria
 from app.models.proyecto_auditoria import ProyectoAuditoria
 from app.models.alerta import Alerta
+from app.models.alerta_observatorio import AlertaObservatorio
 from app.models.formato_generado import FormatoGenerado
 from app.models.log_trazabilidad import LogTrazabilidad
 from app.models.capacitacion import (
@@ -38,6 +39,7 @@ __all__: list[str] = [
     "Auditoria",
     "ProyectoAuditoria",
     "Alerta",
+    "AlertaObservatorio",
     "FormatoGenerado",
     "LogTrazabilidad",
     "RutaAprendizaje",
