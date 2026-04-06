@@ -19,7 +19,7 @@ interface PropiedadesBurbuja {
   mensaje: Mensaje;
   direccion: Direccion;
   enStreaming?: boolean;
-  alEnviarFeedback?: (mensajeId: string, tipo: 'positivo' | 'negativo') => void;
+  alEnviarFeedback?: (mensajeId: string, tipo: 'positivo' | 'negativo', comentario?: string) => void;
 }
 
 /**

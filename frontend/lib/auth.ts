@@ -127,6 +127,24 @@ export function esDirector(): boolean {
 }
 
 /**
+ * Verifica si el usuario es coordinador
+ */
+export function esCoordinador(): boolean {
+  const usuario = obtenerUsuario();
+  if (!usuario) return false;
+  return usuario.rol === 'coordinador';
+}
+
+/**
+ * Verifica si el usuario es lider tecnico
+ */
+export function esLiderTecnico(): boolean {
+  const usuario = obtenerUsuario();
+  if (!usuario) return false;
+  return usuario.rol === 'lider_tecnico';
+}
+
+/**
  * Verifica si el usuario es aprendiz (rol de capacitacion)
  */
 export function esAprendiz(): boolean {

@@ -191,13 +191,17 @@ export function VentanaChat({ conversacionId, alCambiarConversacion }: Propiedad
     setCitasStreaming([]);
   };
 
-  const manejarFeedback = async (mensajeId: string, tipo: 'positivo' | 'negativo') => {
+  const manejarFeedback = async (mensajeId: string, tipo: 'positivo' | 'negativo', comentario?: string) => {
     if (!idConversacion) return;
     try {
-      await apiCliente.post(`/chat/conversaciones/${idConversacion}/feedback`, {
+      const payload: Record<string, unknown> = {
         mensaje_id: mensajeId,
         puntuacion: tipo === 'positivo' ? 1 : -1,
-      });
+      };
+      if (comentario) {
+        payload.comentario = comentario;
+      }
+      await apiCliente.post(`/chat/conversaciones/${idConversacion}/feedback`, payload);
     } catch (error) {
       console.error('[CecilIA] Error al enviar feedback:', error);
     }

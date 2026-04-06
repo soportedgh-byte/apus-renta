@@ -28,6 +28,7 @@ import {
   RefreshCw,
   Menu,
   ChevronLeft,
+  Brain,
 } from 'lucide-react';
 import { Pestanas, ListaPestanas, DisparadorPestana, ContenidoPestana } from '@/components/ui/tabs';
 import { Insignia } from '@/components/ui/badge';
@@ -312,6 +313,7 @@ export function BarraLateral() {
     { href: '/observatorio', icono: Eye, etiqueta: 'Observatorio', visible: esAdministrador || (direccionActiva === 'DES' && !esAprendiz()) },
     { href: '/analytics', icono: BarChart3, etiqueta: 'Analitica', visible: esAdministrador || esDirector() },
     { href: '/admin', icono: Shield, etiqueta: 'Administracion', visible: esAdministrador },
+    { href: '/admin/modelos', icono: Brain, etiqueta: 'Modelos IA', visible: esAdministrador },
     { href: '/guia-uso', icono: FileText, etiqueta: 'Guia de uso', visible: true },
     { href: '/acerca', icono: Info, etiqueta: 'Acerca de CecilIA', visible: true },
   ];

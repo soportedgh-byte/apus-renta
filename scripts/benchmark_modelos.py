@@ -1,368 +1,391 @@
+#!/usr/bin/env python3
 """
-CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+CecilIA v2 — Script de benchmark comparativo de modelos
+Contraloria General de la Republica de Colombia
 
-Archivo: benchmark_modelos.py
-Propósito: Evaluación comparativa de modelos LLM — mide tiempo de respuesta, calidad y uso de tokens
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Archivo: scripts/benchmark_modelos.py
+Proposito: Ejecuta las 50 preguntas del benchmark contra cada proveedor
+           (base local, fine-tuned, Claude, Gemini) y genera tabla comparativa.
+
+Uso:
+    python scripts/benchmark_modelos.py
+    python scripts/benchmark_modelos.py --proveedores base,claude
+    python scripts/benchmark_modelos.py --categorias normativo,hallazgos
+    python scripts/benchmark_modelos.py --salida resultados/
+
+Sprint: 9
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
+from __future__ import annotations
+
+import argparse
+import asyncio
 import json
-import os
+import logging
 import sys
 import time
-import logging
-from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Configuración
-# ---------------------------------------------------------------------------
+# Agregar el directorio backend al path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+
+from app.finetuning.eval_model import (
+    CATEGORIAS_EVAL,
+    PREGUNTAS_BENCHMARK,
+    ComparativaBenchmark,
+    ResultadoBenchmark,
+    ejecutar_benchmark_modelo,
+    generar_comparativa,
+    generar_informe_docx,
+    guardar_resultado,
+)
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    stream=sys.stdout,
 )
-logger = logging.getLogger("benchmark_modelos")
-
-OUTPUT_DIR: Path = Path(os.environ.get("BENCHMARK_OUTPUT", "benchmarks"))
-
-# ---------------------------------------------------------------------------
-# Proveedores y modelos a evaluar
-# ---------------------------------------------------------------------------
-PROVEEDORES: list[dict] = [
-    {
-        "nombre": "OpenAI",
-        "modelos": ["gpt-4o", "gpt-4o-mini"],
-        "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY",
-    },
-    {
-        "nombre": "Anthropic",
-        "modelos": ["claude-sonnet-4-20250514", "claude-haiku-35-20241022"],
-        "base_url": "https://api.anthropic.com",
-        "api_key_env": "ANTHROPIC_API_KEY",
-    },
-    {
-        "nombre": "Azure OpenAI",
-        "modelos": ["gpt-4o"],
-        "base_url": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
-        "api_key_env": "AZURE_OPENAI_KEY",
-    },
-    {
-        "nombre": "Ollama (local)",
-        "modelos": ["llama3:8b", "mistral:7b"],
-        "base_url": "http://localhost:11434/v1",
-        "api_key_env": "",
-    },
-]
-
-# ---------------------------------------------------------------------------
-# Casos de prueba del dominio fiscal colombiano
-# ---------------------------------------------------------------------------
-CASOS_PRUEBA: list[dict] = [
-    {
-        "id": "CP-01",
-        "categoria": "normativo",
-        "prompt": (
-            "Explica los principios constitucionales del control fiscal en Colombia "
-            "según los artículos 267 y 268 de la Constitución Política."
-        ),
-        "criterios": ["mención art. 267", "mención art. 268", "precisión jurídica"],
-    },
-    {
-        "id": "CP-02",
-        "categoria": "calculo_materialidad",
-        "prompt": (
-            "Dado un presupuesto de inversión de $450.000 millones y un nivel de "
-            "confianza del 95%, calcula la materialidad global y la materialidad de "
-            "ejecución para una auditoría financiera según las NIA."
-        ),
-        "criterios": ["cálculo correcto", "referencia NIA 320", "justificación"],
-    },
-    {
-        "id": "CP-03",
-        "categoria": "analisis_benford",
-        "prompt": (
-            "Describe la Ley de Benford y cómo se aplica para detectar anomalías "
-            "en los registros de pagos de un sujeto de control. Incluye un ejemplo "
-            "con distribución esperada del primer dígito."
-        ),
-        "criterios": ["distribución correcta", "aplicación a auditoría", "ejemplo"],
-    },
-    {
-        "id": "CP-04",
-        "categoria": "hallazgo",
-        "prompt": (
-            "Redacta un hallazgo fiscal tipo de una auditoría a un programa de "
-            "conectividad rural del MinTIC. Incluye condición, criterio, causa y "
-            "efecto."
-        ),
-        "criterios": ["estructura CCCE", "lenguaje técnico", "coherencia"],
-    },
-    {
-        "id": "CP-05",
-        "categoria": "razonamiento",
-        "prompt": (
-            "Compara las ventajas y desventajas de usar RAG frente a fine-tuning "
-            "para un asistente de auditoría gubernamental que debe citar normatividad "
-            "vigente."
-        ),
-        "criterios": ["comparación equilibrada", "contexto auditoría", "recomendación"],
-    },
-]
+logger = logging.getLogger("cecilia.benchmark")
 
 
-# ---------------------------------------------------------------------------
-# Estructura de resultados
-# ---------------------------------------------------------------------------
-@dataclass
-class ResultadoModelo:
-    """Almacena los resultados de un modelo en un caso de prueba."""
+# ── Funciones de inferencia por proveedor ────────────────────────────────────
 
-    proveedor: str
-    modelo: str
-    caso_id: str
-    tiempo_respuesta_ms: float = 0.0
-    tokens_prompt: int = 0
-    tokens_respuesta: int = 0
-    tokens_total: int = 0
-    respuesta: str = ""
-    error: str | None = None
-    puntuacion_manual: float | None = None
+async def inferencia_openai(pregunta: str) -> str:
+    """Inferencia usando API compatible con OpenAI (base local, vLLM, Ollama)."""
+    import httpx
+    from app.config import configuracion
 
-
-@dataclass
-class InformeBenchmark:
-    """Consolidado de resultados de benchmark."""
-
-    fecha: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
-    resultados: list[dict] = field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# Ejecución de llamadas a modelos
-# ---------------------------------------------------------------------------
-
-def llamar_openai_compatible(
-    base_url: str,
-    api_key: str,
-    modelo: str,
-    prompt: str,
-) -> ResultadoModelo:
-    """Realiza una llamada a una API compatible con OpenAI y mide métricas."""
-    try:
-        import openai
-    except ImportError:
-        logger.error("openai no instalado. Ejecute: pip install openai")
-        return ResultadoModelo(
-            proveedor="", modelo=modelo, caso_id="",
-            error="Paquete openai no instalado",
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            f"{configuracion.LLM_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {configuracion.LLM_API_KEY}"},
+            json={
+                "model": configuracion.LLM_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres CecilIA, asistente de IA de la Contraloria General "
+                            "de la Republica de Colombia especializado en control fiscal."
+                        ),
+                    },
+                    {"role": "user", "content": pregunta},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 2048,
+            },
         )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
 
-    client = openai.OpenAI(base_url=base_url, api_key=api_key or "no-key")
 
-    inicio = time.perf_counter()
-    try:
-        respuesta = client.chat.completions.create(
-            model=modelo,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Eres CecilIA, asistente de IA de la Contraloría General "
-                        "de la República de Colombia, especializada en control fiscal."
-                    ),
+async def inferencia_claude(pregunta: str) -> str:
+    """Inferencia usando la API de Anthropic (Claude)."""
+    import httpx
+    import os
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY no configurada")
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 2048,
+                "system": (
+                    "Eres un experto en control fiscal colombiano. "
+                    "Responde de forma tecnica y fundamentada."
+                ),
+                "messages": [{"role": "user", "content": pregunta}],
+            },
+        )
+        r.raise_for_status()
+        return r.json()["content"][0]["text"]
+
+
+async def inferencia_gemini(pregunta: str) -> str:
+    """Inferencia usando la API de Google Gemini."""
+    import httpx
+    import os
+
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY no configurada")
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+            json={
+                "contents": [{
+                    "parts": [{
+                        "text": (
+                            "Eres un experto en control fiscal colombiano. "
+                            "Responde de forma tecnica y fundamentada.\n\n"
+                            f"Pregunta: {pregunta}"
+                        ),
+                    }],
+                }],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 2048,
                 },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=1024,
+            },
         )
-        fin = time.perf_counter()
-
-        uso = respuesta.usage
-        return ResultadoModelo(
-            proveedor="",
-            modelo=modelo,
-            caso_id="",
-            tiempo_respuesta_ms=(fin - inicio) * 1000,
-            tokens_prompt=uso.prompt_tokens if uso else 0,
-            tokens_respuesta=uso.completion_tokens if uso else 0,
-            tokens_total=uso.total_tokens if uso else 0,
-            respuesta=respuesta.choices[0].message.content or "",
-        )
-    except Exception as exc:
-        fin = time.perf_counter()
-        return ResultadoModelo(
-            proveedor="",
-            modelo=modelo,
-            caso_id="",
-            tiempo_respuesta_ms=(fin - inicio) * 1000,
-            error=str(exc),
-        )
+        r.raise_for_status()
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def llamar_anthropic(
-    api_key: str,
-    modelo: str,
-    prompt: str,
-) -> ResultadoModelo:
-    """Realiza una llamada a la API de Anthropic y mide métricas."""
+async def inferencia_finetuned(pregunta: str) -> str:
+    """Inferencia usando modelo fine-tuned local (via Ollama o vLLM)."""
+    import httpx
+
+    # Intenta primero con Ollama
     try:
-        import anthropic
-    except ImportError:
-        logger.error("anthropic no instalado. Ejecute: pip install anthropic")
-        return ResultadoModelo(
-            proveedor="Anthropic", modelo=modelo, caso_id="",
-            error="Paquete anthropic no instalado",
-        )
-
-    client = anthropic.Anthropic(api_key=api_key)
-
-    inicio = time.perf_counter()
-    try:
-        respuesta = client.messages.create(
-            model=modelo,
-            max_tokens=1024,
-            system=(
-                "Eres CecilIA, asistente de IA de la Contraloría General "
-                "de la República de Colombia, especializada en control fiscal."
-            ),
-            messages=[{"role": "user", "content": prompt}],
-        )
-        fin = time.perf_counter()
-
-        texto = respuesta.content[0].text if respuesta.content else ""
-        return ResultadoModelo(
-            proveedor="Anthropic",
-            modelo=modelo,
-            caso_id="",
-            tiempo_respuesta_ms=(fin - inicio) * 1000,
-            tokens_prompt=respuesta.usage.input_tokens,
-            tokens_respuesta=respuesta.usage.output_tokens,
-            tokens_total=respuesta.usage.input_tokens + respuesta.usage.output_tokens,
-            respuesta=texto,
-        )
-    except Exception as exc:
-        fin = time.perf_counter()
-        return ResultadoModelo(
-            proveedor="Anthropic",
-            modelo=modelo,
-            caso_id="",
-            tiempo_respuesta_ms=(fin - inicio) * 1000,
-            error=str(exc),
-        )
-
-
-# ---------------------------------------------------------------------------
-# Orquestación del benchmark
-# ---------------------------------------------------------------------------
-
-def ejecutar_benchmark() -> InformeBenchmark:
-    """Ejecuta todos los casos de prueba contra todos los proveedores."""
-    informe = InformeBenchmark()
-
-    for proveedor in PROVEEDORES:
-        api_key = os.environ.get(proveedor["api_key_env"], "") if proveedor["api_key_env"] else ""
-        nombre_prov = proveedor["nombre"]
-
-        if not api_key and proveedor["api_key_env"]:
-            logger.warning(
-                "Clave API no encontrada para %s (%s). Se omite.",
-                nombre_prov,
-                proveedor["api_key_env"],
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "cecilia-v2",
+                    "prompt": (
+                        "### Instruccion:\nEres CecilIA, asistente de IA de la "
+                        "Contraloria General de la Republica de Colombia.\n\n"
+                        f"### Entrada:\n{pregunta}\n\n### Respuesta:\n"
+                    ),
+                    "stream": False,
+                    "options": {"temperature": 0.3, "num_predict": 2048},
+                },
             )
+            r.raise_for_status()
+            return r.json()["response"]
+    except Exception:
+        pass
+
+    # Fallback: vLLM local
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            "http://localhost:8001/v1/chat/completions",
+            json={
+                "model": "cecilia-v2-finetuned",
+                "messages": [
+                    {"role": "system", "content": "Eres CecilIA, asistente de control fiscal."},
+                    {"role": "user", "content": pregunta},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 2048,
+            },
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
+
+# ── Mapa de proveedores ─────────────────────────────────────────────────────
+
+PROVEEDORES = {
+    "base": {
+        "id": "base",
+        "nombre": "Modelo Base (LLM principal)",
+        "tipo": "base",
+        "funcion": inferencia_openai,
+    },
+    "finetuned": {
+        "id": "finetuned",
+        "nombre": "CecilIA v2 Fine-tuned (LoRA)",
+        "tipo": "finetuned",
+        "funcion": inferencia_finetuned,
+    },
+    "claude": {
+        "id": "claude",
+        "nombre": "Claude Sonnet 4 (Anthropic)",
+        "tipo": "claude",
+        "funcion": inferencia_claude,
+    },
+    "gemini": {
+        "id": "gemini",
+        "nombre": "Gemini 2.0 Flash (Google)",
+        "tipo": "gemini",
+        "funcion": inferencia_gemini,
+    },
+}
+
+
+# ── Funciones principales ───────────────────────────────────────────────────
+
+def filtrar_preguntas(
+    categorias: list[str] | None = None,
+) -> list[dict[str, str]]:
+    """Filtra preguntas por categoria."""
+    if not categorias:
+        return PREGUNTAS_BENCHMARK
+    return [p for p in PREGUNTAS_BENCHMARK if p["categoria"] in categorias]
+
+
+def imprimir_tabla_resumen(comparativa: ComparativaBenchmark) -> None:
+    """Imprime una tabla resumen en la consola."""
+    print("\n" + "=" * 80)
+    print("  BENCHMARK COMPARATIVO DE MODELOS — CecilIA v2")
+    print("  Contraloria General de la Republica de Colombia")
+    print("=" * 80)
+
+    # Ranking global
+    print(f"\n{'#':<4} {'Modelo':<35} {'Tipo':<12} {'Promedio':<10} {'Tiempo':<10} {'Exito':<8}")
+    print("-" * 79)
+    for i, r in enumerate(comparativa.ranking_global, 1):
+        print(
+            f"{i:<4} {r['modelo']:<35} {r['tipo']:<12} "
+            f"{r['promedio']:.1f}/10   {r['tiempo_promedio_s']:.1f}s     "
+            f"{r['tasa_exito']:.0f}%"
+        )
+
+    # Por categoria
+    print("\n" + "-" * 79)
+    print("DETALLE POR CATEGORIA:")
+    for cat in CATEGORIAS_EVAL:
+        rank = comparativa.ranking_por_categoria.get(cat, [])
+        if rank:
+            mejor = rank[0]
+            print(f"  {cat:<25} Mejor: {mejor['modelo']} ({mejor['promedio']:.1f}/10)")
+
+    print("=" * 80)
+
+
+async def ejecutar_benchmark(
+    proveedores_str: list[str],
+    categorias: list[str] | None,
+    directorio_salida: str,
+    usar_evaluador_llm: bool,
+) -> None:
+    """Ejecuta el benchmark completo."""
+    preguntas = filtrar_preguntas(categorias)
+    logger.info(
+        "Benchmark: %d preguntas, %d proveedores",
+        len(preguntas), len(proveedores_str),
+    )
+
+    resultados: list[ResultadoBenchmark] = []
+    dir_salida = Path(directorio_salida)
+    dir_salida.mkdir(parents=True, exist_ok=True)
+
+    for nombre_prov in proveedores_str:
+        prov = PROVEEDORES.get(nombre_prov)
+        if not prov:
+            logger.warning("Proveedor desconocido: %s (disponibles: %s)",
+                          nombre_prov, ", ".join(PROVEEDORES.keys()))
             continue
 
-        for modelo in proveedor["modelos"]:
-            logger.info("Evaluando %s / %s …", nombre_prov, modelo)
+        logger.info("=" * 60)
+        logger.info("Ejecutando benchmark para: %s", prov["nombre"])
+        logger.info("=" * 60)
 
-            for caso in CASOS_PRUEBA:
-                logger.info("  Caso %s (%s)", caso["id"], caso["categoria"])
+        try:
+            resultado = await ejecutar_benchmark_modelo(
+                modelo_id=prov["id"],
+                modelo_nombre=prov["nombre"],
+                tipo=prov["tipo"],
+                funcion_inferencia=prov["funcion"],
+                preguntas=preguntas,
+                usar_evaluador_llm=usar_evaluador_llm,
+            )
+            resultados.append(resultado)
+            guardar_resultado(resultado, dir_salida)
+            logger.info(
+                "Completado %s: promedio=%.1f, tiempo=%.1fs",
+                prov["nombre"],
+                resultado.metricas_globales.get("promedio_calificacion", 0),
+                resultado.tiempo_total_s,
+            )
+        except Exception as exc:
+            logger.error("Error con proveedor %s: %s", nombre_prov, exc)
 
-                if nombre_prov == "Anthropic":
-                    resultado = llamar_anthropic(api_key, modelo, caso["prompt"])
-                else:
-                    resultado = llamar_openai_compatible(
-                        proveedor["base_url"], api_key, modelo, caso["prompt"]
-                    )
+    if not resultados:
+        logger.error("No se obtuvieron resultados de ningun proveedor")
+        return
 
-                resultado.proveedor = nombre_prov
-                resultado.caso_id = caso["id"]
+    # Generar comparativa
+    comparativa = generar_comparativa(resultados)
 
-                logger.info(
-                    "    → %.0f ms | %d tokens | error=%s",
-                    resultado.tiempo_respuesta_ms,
-                    resultado.tokens_total,
-                    resultado.error or "ninguno",
-                )
+    # Guardar comparativa JSON
+    comp_json = dir_salida / f"comparativa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with comp_json.open("w", encoding="utf-8") as f:
+        json.dump(comparativa.a_dict(), f, ensure_ascii=False, indent=2)
+    logger.info("Comparativa JSON: %s", comp_json)
 
-                informe.resultados.append(asdict(resultado))
+    # Generar informe DOCX
+    try:
+        docx_bytes = generar_informe_docx(comparativa)
+        docx_path = dir_salida / f"informe_benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        with docx_path.open("wb") as f:
+            f.write(docx_bytes)
+        logger.info("Informe DOCX: %s", docx_path)
+    except Exception as exc:
+        logger.warning("No se pudo generar DOCX: %s", exc)
 
-    return informe
+    # Imprimir resumen
+    imprimir_tabla_resumen(comparativa)
 
 
-# ---------------------------------------------------------------------------
-# Generación de reporte
-# ---------------------------------------------------------------------------
+# ── CLI ─────────────────────────────────────────────────────────────────────
 
-def generar_reporte(informe: InformeBenchmark) -> Path:
-    """Genera un reporte JSON con los resultados del benchmark."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    ruta = OUTPUT_DIR / f"benchmark_{timestamp}.json"
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="CecilIA v2 — Benchmark comparativo de modelos LLM",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ejemplos:
+  python benchmark_modelos.py
+  python benchmark_modelos.py --proveedores base,claude
+  python benchmark_modelos.py --categorias normativo,hallazgos --salida resultados/
+  python benchmark_modelos.py --proveedores gemini --evaluador-llm
+        """,
+    )
+    parser.add_argument(
+        "--proveedores",
+        default="base",
+        help=f"Proveedores separados por coma (disponibles: {','.join(PROVEEDORES.keys())})",
+    )
+    parser.add_argument(
+        "--categorias",
+        default=None,
+        help=f"Categorias separados por coma (disponibles: {','.join(CATEGORIAS_EVAL)})",
+    )
+    parser.add_argument(
+        "--salida",
+        default="benchmark_resultados",
+        help="Directorio de salida para resultados",
+    )
+    parser.add_argument(
+        "--evaluador-llm",
+        action="store_true",
+        help="Usar LLM como juez para calificar (requiere API key)",
+    )
 
-    with open(ruta, "w", encoding="utf-8") as f:
-        json.dump(asdict(informe), f, ensure_ascii=False, indent=2)
+    args = parser.parse_args()
 
-    logger.info("Reporte guardado en: %s", ruta)
+    proveedores = [p.strip() for p in args.proveedores.split(",")]
+    categorias = (
+        [c.strip() for c in args.categorias.split(",")]
+        if args.categorias
+        else None
+    )
 
-    # Resumen por modelo
-    resumen: dict[str, dict] = {}
-    for r in informe.resultados:
-        clave = f"{r['proveedor']}/{r['modelo']}"
-        if clave not in resumen:
-            resumen[clave] = {
-                "casos": 0,
-                "errores": 0,
-                "tiempo_total_ms": 0.0,
-                "tokens_total": 0,
-            }
-        resumen[clave]["casos"] += 1
-        if r.get("error"):
-            resumen[clave]["errores"] += 1
-        resumen[clave]["tiempo_total_ms"] += r["tiempo_respuesta_ms"]
-        resumen[clave]["tokens_total"] += r["tokens_total"]
-
-    logger.info("\n" + "=" * 70)
-    logger.info("RESUMEN COMPARATIVO DE MODELOS")
-    logger.info("%-30s %8s %8s %10s %8s", "Modelo", "Casos", "Errores", "Tiempo(ms)", "Tokens")
-    logger.info("-" * 70)
-    for clave, datos in resumen.items():
-        promedio_ms = datos["tiempo_total_ms"] / max(datos["casos"], 1)
-        logger.info(
-            "%-30s %8d %8d %10.0f %8d",
-            clave,
-            datos["casos"],
-            datos["errores"],
-            promedio_ms,
-            datos["tokens_total"],
+    asyncio.run(
+        ejecutar_benchmark(
+            proveedores_str=proveedores,
+            categorias=categorias,
+            directorio_salida=args.salida,
+            usar_evaluador_llm=args.evaluador_llm,
         )
-    logger.info("=" * 70)
-
-    return ruta
+    )
 
 
-# ---------------------------------------------------------------------------
-# Punto de entrada
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    logger.info("Iniciando benchmark de modelos LLM para CecilIA v2 …")
-    informe = ejecutar_benchmark()
-    ruta_reporte = generar_reporte(informe)
-    logger.info("Benchmark finalizado. Reporte: %s", ruta_reporte)
+    main()

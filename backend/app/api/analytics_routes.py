@@ -1,24 +1,26 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: app/api/analytics_routes.py
-Propósito: Endpoints de analítica y dashboard — estadísticas de uso, métricas
-           de modelos, trazabilidad, calidad y reporte Circular 023 CGR
-Sprint: 2.1
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: Endpoints de analitica — metricas de uso, auditoria, calidad,
+           capacitacion, exportacion Excel/DOCX/CSV y reporte Circular 023.
+Sprint: 10
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
 from __future__ import annotations
 
+import io
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, case, and_, extract
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import obtener_sesion_db
@@ -28,374 +30,213 @@ logger = logging.getLogger("cecilia.api.analytics")
 enrutador = APIRouter()
 
 
-# ── Esquemas ─────────────────────────────────────────────────────────────────
-
-
-class EstadisticasUso(BaseModel):
-    """Estadísticas generales de uso del sistema."""
-
-    total_consultas: int
-    total_usuarios_activos: int
-    consultas_por_direccion: dict[str, int]
-    consultas_por_fase: dict[str, int]
-    consultas_hoy: int
-    consultas_semana: int
-    consultas_mes: int
-    periodo_inicio: datetime
-    periodo_fin: datetime
-
-
-class MetricasModelo(BaseModel):
-    """Métricas de rendimiento de los modelos LLM."""
-
-    modelo: str
-    total_invocaciones: int
-    latencia_promedio_ms: float
-    latencia_p95_ms: float
-    latencia_p99_ms: float
-    tokens_entrada_promedio: int
-    tokens_salida_promedio: int
-    tasa_error: float
-    costo_estimado_usd: float
-    periodo_inicio: datetime
-    periodo_fin: datetime
-
-
-class RegistroTrazabilidad(BaseModel):
-    """Registro individual de trazabilidad de una operación."""
-
-    id: str
-    marca_temporal: datetime
-    usuario_id: int
-    usuario_nombre: str
-    accion: str
-    modulo: str
-    detalle: str
-    modelo_utilizado: Optional[str] = None
-    fuentes_consultadas: list[str] = Field(default_factory=list)
-    ip_origen: Optional[str] = None
-    duracion_ms: Optional[float] = None
-
-
-class RespuestaTrazabilidadPaginada(BaseModel):
-    """Respuesta paginada de registros de trazabilidad."""
-
-    registros: list[RegistroTrazabilidad]
-    total: int
-    pagina: int
-    tamano_pagina: int
-    total_paginas: int
-
-
-class MetricasCalidad(BaseModel):
-    """Métricas de calidad de las respuestas del sistema."""
-
-    tasa_alucinacion_estimada: float = Field(
-        ..., description="Porcentaje estimado de respuestas con alucinaciones",
-    )
-    precision_rag: float = Field(
-        ..., description="Precisión promedio de la recuperación RAG",
-    )
-    cobertura_fuentes: float = Field(
-        ..., description="Porcentaje de respuestas que citan al menos una fuente",
-    )
-    satisfaccion_usuario: float = Field(
-        ..., description="Puntuación promedio de satisfacción (feedback positivo / total)",
-    )
-    total_feedback_positivo: int
-    total_feedback_negativo: int
-    total_feedback_neutral: int
-    latencia_respuesta_promedio_ms: float
-    periodo_inicio: datetime
-    periodo_fin: datetime
-
-
 # ── Dependencia temporal de usuario autenticado ──────────────────────────────
 
-
 async def _obtener_usuario_actual_id() -> int:
-    """Dependencia temporal — será reemplazada por auth real."""
+    """Dependencia temporal — sera reemplazada por auth real."""
     return 1
 
 
-# ── Endpoints ────────────────────────────────────────────────────────────────
+# ── Endpoints de metricas ───────────────────────────────────────────────────
 
-
-@enrutador.get(
-    "/uso",
-    response_model=EstadisticasUso,
-    summary="Estadísticas de uso",
-    description="Retorna estadísticas de uso del sistema por consultas, usuarios y direcciones.",
-)
+@enrutador.get("/uso", summary="Metricas de uso del sistema")
 async def obtener_estadisticas_uso(
-    fecha_inicio: Optional[datetime] = Query(default=None, description="Inicio del periodo de consulta"),
-    fecha_fin: Optional[datetime] = Query(default=None, description="Fin del periodo de consulta"),
-    direccion: Optional[str] = Query(default=None, description="Filtrar por dirección: DES | DVF"),
-    db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
-) -> dict[str, Any]:
-    """Calcula y retorna estadísticas de uso del sistema.
-
-    Incluye conteo de consultas por dirección, fase y periodo temporal.
-    """
-
-    ahora: datetime = datetime.now(timezone.utc)
-
-    # TODO: Implementar consultas reales a la base de datos
-    logger.info(
-        "Consulta de estadísticas de uso: inicio=%s, fin=%s, direccion=%s, usuario=%d",
-        fecha_inicio, fecha_fin, direccion, usuario_id,
-    )
-
-    return {
-        "total_consultas": 0,
-        "total_usuarios_activos": 0,
-        "consultas_por_direccion": {"DES": 0, "DVF": 0},
-        "consultas_por_fase": {
-            "preplaneacion": 0,
-            "planeacion": 0,
-            "ejecucion": 0,
-            "informe": 0,
-            "seguimiento": 0,
-        },
-        "consultas_hoy": 0,
-        "consultas_semana": 0,
-        "consultas_mes": 0,
-        "periodo_inicio": fecha_inicio or ahora,
-        "periodo_fin": fecha_fin or ahora,
-    }
-
-
-@enrutador.get(
-    "/modelos",
-    response_model=list[MetricasModelo],
-    summary="Métricas de modelos",
-    description="Retorna métricas de rendimiento de los modelos LLM utilizados.",
-)
-async def obtener_metricas_modelos(
     fecha_inicio: Optional[datetime] = Query(default=None),
     fecha_fin: Optional[datetime] = Query(default=None),
-    modelo: Optional[str] = Query(default=None, description="Filtrar por nombre de modelo"),
+    direccion: Optional[str] = Query(default=None, description="DES | DVF"),
     db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
-) -> list[dict[str, Any]]:
-    """Retorna métricas de rendimiento por modelo LLM.
-
-    Incluye latencia, uso de tokens, tasa de errores y costo estimado.
-    """
-
-    ahora: datetime = datetime.now(timezone.utc)
-
-    # TODO: Implementar consultas reales a logs de trazabilidad
-    logger.info(
-        "Consulta de métricas de modelos: modelo=%s, usuario=%d",
-        modelo, usuario_id,
-    )
-
-    return [{
-        "modelo": modelo or "gpt-4o",
-        "total_invocaciones": 0,
-        "latencia_promedio_ms": 0.0,
-        "latencia_p95_ms": 0.0,
-        "latencia_p99_ms": 0.0,
-        "tokens_entrada_promedio": 0,
-        "tokens_salida_promedio": 0,
-        "tasa_error": 0.0,
-        "costo_estimado_usd": 0.0,
-        "periodo_inicio": fecha_inicio or ahora,
-        "periodo_fin": fecha_fin or ahora,
-    }]
+) -> dict[str, Any]:
+    """Retorna metricas de uso: consultas, usuarios, por direccion y fase."""
+    from app.analytics.metricas_uso import obtener_metricas_uso
+    return await obtener_metricas_uso(db, fecha_inicio, fecha_fin, direccion)
 
 
-@enrutador.get(
-    "/trazabilidad",
-    response_model=RespuestaTrazabilidadPaginada,
-    summary="Logs de trazabilidad",
-    description="Retorna logs de trazabilidad de operaciones del sistema con paginación.",
-)
-async def obtener_trazabilidad(
-    pagina: int = Query(default=1, ge=1, description="Número de página"),
-    tamano_pagina: int = Query(default=50, ge=1, le=200, description="Registros por página"),
-    usuario_filtro: Optional[int] = Query(default=None, description="Filtrar por ID de usuario"),
-    modulo: Optional[str] = Query(default=None, description="Filtrar por módulo (chat, rag, formatos, etc.)"),
-    accion: Optional[str] = Query(default=None, description="Filtrar por tipo de acción"),
+@enrutador.get("/uso/consultas-por-dia", summary="Consultas por dia (grafico linea)")
+async def consultas_por_dia(
+    dias: int = Query(default=30, ge=1, le=365),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Retorna consultas por dia para grafico de linea."""
+    from app.analytics.metricas_uso import obtener_consultas_por_dia
+    datos = await obtener_consultas_por_dia(db, dias)
+    return {"serie": datos, "total_dias": len(datos)}
+
+
+@enrutador.get("/uso/top-temas", summary="Top 10 temas consultados")
+async def top_temas(
+    limite: int = Query(default=10, ge=1, le=50),
+    dias: int = Query(default=30),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Top N temas mas consultados."""
+    from app.analytics.metricas_uso import obtener_top_temas
+    return {"temas": await obtener_top_temas(db, limite, dias)}
+
+
+@enrutador.get("/uso/usuarios-activos", summary="Usuarios mas activos")
+async def usuarios_activos(
+    limite: int = Query(default=20),
+    dias: int = Query(default=30),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Lista usuarios mas activos con metricas."""
+    from app.analytics.metricas_uso import obtener_usuarios_activos
+    return {"usuarios": await obtener_usuarios_activos(db, limite, dias)}
+
+
+@enrutador.get("/uso/comparativo-des-dvf", summary="Comparativo DES vs DVF")
+async def comparativo_des_dvf(
+    dias: int = Query(default=30),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Comparativo de uso entre DES y DVF."""
+    from app.analytics.metricas_uso import obtener_comparativo_des_dvf
+    return await obtener_comparativo_des_dvf(db, dias)
+
+
+@enrutador.get("/auditorias", summary="Metricas de auditorias y hallazgos")
+async def obtener_metricas_auditorias(
     fecha_inicio: Optional[datetime] = Query(default=None),
     fecha_fin: Optional[datetime] = Query(default=None),
+    direccion: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> dict[str, Any]:
-    """Retorna registros de trazabilidad con paginación y filtros.
-
-    Cada operación del sistema genera un registro de trazabilidad
-    que incluye usuario, acción, módulo, fuentes consultadas y duración.
-    """
-
-    # TODO: Implementar consulta real a la tabla de logs de trazabilidad
-    logger.info(
-        "Consulta de trazabilidad: pagina=%d, tamano=%d, usuario_filtro=%s, modulo=%s",
-        pagina, tamano_pagina, usuario_filtro, modulo,
-    )
-
-    return {
-        "registros": [],
-        "total": 0,
-        "pagina": pagina,
-        "tamano_pagina": tamano_pagina,
-        "total_paginas": 0,
-    }
+    """Retorna metricas de auditorias, hallazgos por connotacion, formatos."""
+    from app.analytics.metricas_auditoria import obtener_metricas_auditoria
+    return await obtener_metricas_auditoria(db, fecha_inicio, fecha_fin, direccion)
 
 
-@enrutador.get(
-    "/calidad",
-    response_model=MetricasCalidad,
-    summary="Métricas de calidad",
-    description="Retorna métricas de calidad de las respuestas (alucinaciones, precisión RAG, satisfacción).",
-)
+@enrutador.get("/calidad", summary="Metricas de calidad de respuestas")
 async def obtener_metricas_calidad(
     fecha_inicio: Optional[datetime] = Query(default=None),
     fecha_fin: Optional[datetime] = Query(default=None),
-    direccion: Optional[str] = Query(default=None, description="Filtrar por dirección: DES | DVF"),
+    direccion: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
 ) -> dict[str, Any]:
-    """Retorna métricas de calidad del sistema.
+    """Retorna metricas de calidad: feedback, citaciones, aprobacion."""
+    from app.analytics.metricas_calidad import obtener_metricas_calidad
+    return await obtener_metricas_calidad(db, fecha_inicio, fecha_fin, direccion)
 
-    Incluye:
-    - Tasa estimada de alucinaciones (respuestas con información inventada).
-    - Precisión del pipeline RAG.
-    - Porcentaje de respuestas que citan fuentes verificables.
-    - Satisfacción del usuario basada en retroalimentación.
-    """
 
-    ahora: datetime = datetime.now(timezone.utc)
+@enrutador.get("/capacitacion", summary="Metricas de capacitacion")
+async def obtener_metricas_capacitacion(
+    fecha_inicio: Optional[datetime] = Query(default=None),
+    fecha_fin: Optional[datetime] = Query(default=None),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Retorna metricas del modulo de capacitacion."""
+    from app.analytics.metricas_capacitacion import obtener_metricas_capacitacion
+    return await obtener_metricas_capacitacion(db, fecha_inicio, fecha_fin)
 
-    # TODO: Implementar cálculos reales desde la base de datos
-    logger.info(
-        "Consulta de métricas de calidad: direccion=%s, usuario=%d",
-        direccion, usuario_id,
+
+# ── Exportacion ──────────────────────────────────────────────────────────────
+
+@enrutador.get("/exportar", summary="Exportar metricas a Excel")
+async def exportar_metricas_excel(
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> StreamingResponse:
+    """Genera y descarga un archivo Excel con todas las metricas."""
+    from app.analytics.metricas_uso import obtener_metricas_uso
+    from app.analytics.metricas_auditoria import obtener_metricas_auditoria
+    from app.analytics.metricas_calidad import obtener_metricas_calidad
+    from app.analytics.metricas_capacitacion import obtener_metricas_capacitacion
+    from app.analytics.exportador import exportar_excel
+
+    uso = await obtener_metricas_uso(db)
+    auditoria = await obtener_metricas_auditoria(db)
+    calidad = await obtener_metricas_calidad(db)
+    capacitacion = await obtener_metricas_capacitacion(db)
+
+    excel_bytes = exportar_excel(uso, auditoria, calidad, capacitacion)
+    fecha = datetime.now().strftime("%Y%m%d")
+
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=metricas_cecilia_{fecha}.xlsx"},
     )
 
-    return {
-        "tasa_alucinacion_estimada": 0.0,
-        "precision_rag": 0.0,
-        "cobertura_fuentes": 0.0,
-        "satisfaccion_usuario": 0.0,
-        "total_feedback_positivo": 0,
-        "total_feedback_negativo": 0,
-        "total_feedback_neutral": 0,
-        "latencia_respuesta_promedio_ms": 0.0,
-        "periodo_inicio": fecha_inicio or ahora,
-        "periodo_fin": fecha_fin or ahora,
-    }
 
+@enrutador.get("/exportar/csv", summary="Exportar metricas a CSV")
+async def exportar_metricas_csv(
+    seccion: str = Query(default="uso", description="uso | auditorias | calidad | capacitacion"),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> StreamingResponse:
+    """Exporta una seccion de metricas a CSV."""
+    from app.analytics.exportador import exportar_csv
 
-# ── Reporte Circular 023 CGR ───────────────────────────────────────────────
+    datos: dict[str, Any] = {}
+    if seccion == "uso":
+        from app.analytics.metricas_uso import obtener_metricas_uso
+        datos = await obtener_metricas_uso(db)
+    elif seccion == "auditorias":
+        from app.analytics.metricas_auditoria import obtener_metricas_auditoria
+        datos = await obtener_metricas_auditoria(db)
+    elif seccion == "calidad":
+        from app.analytics.metricas_calidad import obtener_metricas_calidad
+        datos = await obtener_metricas_calidad(db)
+    elif seccion == "capacitacion":
+        from app.analytics.metricas_capacitacion import obtener_metricas_capacitacion
+        datos = await obtener_metricas_capacitacion(db)
 
+    csv_bytes = exportar_csv(datos, seccion)
+    fecha = datetime.now().strftime("%Y%m%d")
 
-class ReporteCircular023(BaseModel):
-    """Reporte trimestral de cumplimiento de la Circular 023 de la CGR.
-
-    Genera automáticamente las estadísticas requeridas por el Contralor General
-    para el informe de uso de IA conforme a la Circular No. 023 (2025IE0146473).
-    """
-
-    periodo_trimestre: str = Field(
-        ..., description="Trimestre del reporte (ej: '2026-Q1')",
-    )
-    periodo_inicio: datetime
-    periodo_fin: datetime
-
-    # Uso general
-    total_consultas: int = Field(..., description="Total de consultas al sistema en el trimestre")
-    total_conversaciones: int = Field(..., description="Total de conversaciones iniciadas")
-    promedio_mensajes_por_conversacion: float
-
-    # Usuarios activos por dirección
-    usuarios_activos_des: int = Field(..., description="Usuarios activos DES")
-    usuarios_activos_dvf: int = Field(..., description="Usuarios activos DVF")
-    total_usuarios_activos: int
-
-    # Consultas por dirección
-    consultas_des: int
-    consultas_dvf: int
-
-    # Documentos y formatos generados con IA
-    documentos_procesados_rag: int = Field(
-        ..., description="Documentos procesados en el pipeline RAG",
-    )
-    formatos_generados_ia: int = Field(
-        ..., description="Formatos CGR generados con asistencia de IA",
-    )
-    hallazgos_asistidos_ia: int = Field(
-        ..., description="Hallazgos en los que se usó asistencia de IA",
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=metricas_{seccion}_{fecha}.csv"},
     )
 
-    # Calidad y retroalimentación
-    feedback_positivo: int
-    feedback_negativo: int
-    feedback_neutral: int
-    tasa_satisfaccion: float = Field(
-        ..., description="Porcentaje de feedback positivo sobre total con feedback",
+
+# ── Informe ejecutivo ────────────────────────────────────────────────────────
+
+@enrutador.get("/informe-ejecutivo", summary="Informe ejecutivo mensual DOCX")
+async def generar_informe_ejecutivo(
+    periodo: str = Query(default="", description="Periodo del informe (ej: 'Marzo 2026')"),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> StreamingResponse:
+    """Genera y descarga un informe ejecutivo mensual en formato DOCX."""
+    from app.analytics.metricas_uso import obtener_metricas_uso
+    from app.analytics.metricas_auditoria import obtener_metricas_auditoria
+    from app.analytics.metricas_calidad import obtener_metricas_calidad
+    from app.analytics.metricas_capacitacion import obtener_metricas_capacitacion
+    from app.analytics.exportador import generar_informe_ejecutivo
+
+    uso = await obtener_metricas_uso(db)
+    auditoria = await obtener_metricas_auditoria(db)
+    calidad = await obtener_metricas_calidad(db)
+    capacitacion = await obtener_metricas_capacitacion(db)
+
+    docx_bytes = generar_informe_ejecutivo(uso, auditoria, calidad, capacitacion, periodo)
+    fecha = datetime.now().strftime("%Y%m%d")
+
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=informe_ejecutivo_{fecha}.docx"},
     )
 
-    # Modelos utilizados
-    modelos_utilizados: list[str] = Field(
-        default_factory=list, description="Lista de modelos LLM utilizados en el periodo",
-    )
-    latencia_promedio_ms: float
 
-    # Cumplimiento Circular 023
-    total_advertencias_privacidad: int = Field(
-        ..., description="Veces que se detectaron datos personales (Art. Privacidad)",
-    )
-    disclaimers_incluidos: str = Field(
-        default="Todos los mensajes incluyen disclaimer de validacion humana",
-    )
-    principios_implementados: list[str] = Field(
-        default_factory=lambda: [
-            "Transparencia", "Responsabilidad", "Privacidad",
-            "Control Humano", "Usos Limitados", "Declaracion IA", "Algoritmos Abiertos",
-        ],
-    )
-
-    # Nota de generación
-    nota: str = Field(
-        default="Reporte generado automaticamente por CecilIA v2. "
-        "Requiere revision y aprobacion del Director de TIC antes de remision al Despacho.",
-    )
-
+# ── Reporte Circular 023 CGR ────────────────────────────────────────────────
 
 @enrutador.get(
     "/reporte-circular-023",
-    response_model=ReporteCircular023,
     summary="Reporte trimestral Circular 023 CGR",
     description=(
         "Genera el reporte trimestral de uso de IA requerido por la Circular 023 "
-        "del Contralor General de la República. Incluye estadísticas de uso, "
-        "usuarios activos, documentos generados y métricas de cumplimiento."
+        "del Contralor General de la Republica."
     ),
 )
 async def generar_reporte_circular_023(
     trimestre: Optional[str] = Query(
         default=None,
-        description="Trimestre a reportar (ej: '2026-Q1'). Si no se especifica, usa el trimestre actual.",
+        description="Trimestre (ej: '2026-Q1'). Si no se especifica, usa el actual.",
     ),
+    formato: str = Query(default="json", description="json | docx"),
     db: AsyncSession = Depends(obtener_sesion_db),
-    usuario_id: int = Depends(_obtener_usuario_actual_id),
-) -> dict[str, Any]:
-    """Genera el reporte trimestral para cumplimiento de la Circular 023 CGR.
-
-    Conforme a la Circular No. 023 (radicado 2025IE0146473) del Contralor General,
-    este endpoint consolida las estadísticas de uso del sistema de IA para el
-    informe trimestral requerido.
-
-    Consulta datos reales de:
-    - Tabla `conversaciones`: total de conversaciones y mensajes
-    - Tabla `mensajes`: conteo por rol, feedback, modelos
-    - Tabla `documentos`: documentos procesados RAG
-    - Tabla `formatos_generados`: formatos CGR generados con IA
-    - Tabla `hallazgos`: hallazgos con asistencia de IA
-    """
+) -> Any:
+    """Genera el reporte Circular 023 en JSON o DOCX."""
     from app.models.conversacion import Conversacion
     from app.models.mensaje import Mensaje
     from app.models.documento import Documento
@@ -408,198 +249,101 @@ async def generar_reporte_circular_023(
     if trimestre:
         try:
             anio, q = trimestre.split("-Q")
-            anio = int(anio)
-            q = int(q)
+            anio, q = int(anio), int(q)
             mes_inicio = (q - 1) * 3 + 1
             inicio = datetime(anio, mes_inicio, 1, tzinfo=timezone.utc)
-            if q == 4:
-                fin = datetime(anio + 1, 1, 1, tzinfo=timezone.utc)
-            else:
-                fin = datetime(anio, mes_inicio + 3, 1, tzinfo=timezone.utc)
+            fin = datetime(anio, mes_inicio + 3, 1, tzinfo=timezone.utc) if q < 4 else datetime(anio + 1, 1, 1, tzinfo=timezone.utc)
         except (ValueError, IndexError):
-            # Fallback al trimestre actual
             q_actual = (ahora.month - 1) // 3 + 1
             mes_inicio = (q_actual - 1) * 3 + 1
             inicio = datetime(ahora.year, mes_inicio, 1, tzinfo=timezone.utc)
-            if q_actual == 4:
-                fin = datetime(ahora.year + 1, 1, 1, tzinfo=timezone.utc)
-            else:
-                fin = datetime(ahora.year, mes_inicio + 3, 1, tzinfo=timezone.utc)
+            fin = datetime(ahora.year, mes_inicio + 3, 1, tzinfo=timezone.utc) if q_actual < 4 else datetime(ahora.year + 1, 1, 1, tzinfo=timezone.utc)
             trimestre = f"{ahora.year}-Q{q_actual}"
     else:
         q_actual = (ahora.month - 1) // 3 + 1
         mes_inicio = (q_actual - 1) * 3 + 1
         inicio = datetime(ahora.year, mes_inicio, 1, tzinfo=timezone.utc)
-        if q_actual == 4:
-            fin = datetime(ahora.year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            fin = datetime(ahora.year, mes_inicio + 3, 1, tzinfo=timezone.utc)
+        fin = datetime(ahora.year, mes_inicio + 3, 1, tzinfo=timezone.utc) if q_actual < 4 else datetime(ahora.year + 1, 1, 1, tzinfo=timezone.utc)
         trimestre = f"{ahora.year}-Q{q_actual}"
 
-    logger.info(
-        "Generando reporte Circular 023: trimestre=%s, inicio=%s, fin=%s",
-        trimestre, inicio.isoformat(), fin.isoformat(),
-    )
+    # Consultas a la BD
+    total_conv = (await db.execute(
+        select(func.count(Conversacion.id)).where(and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin))
+    )).scalar() or 0
 
-    # --- Consultas reales a la base de datos ---
+    total_consultas = (await db.execute(
+        select(func.count(Mensaje.id)).where(and_(Mensaje.created_at >= inicio, Mensaje.created_at < fin))
+    )).scalar() or 0
 
-    # Total de conversaciones en el periodo
-    total_conv_result = await db.execute(
-        select(func.count(Conversacion.id)).where(
-            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin)
-        )
-    )
-    total_conversaciones = total_conv_result.scalar() or 0
+    promedio_msgs = round(total_consultas / max(total_conv, 1), 1)
 
-    # Total de mensajes (consultas) en el periodo
-    total_msgs_result = await db.execute(
-        select(func.count(Mensaje.id)).where(
-            and_(Mensaje.created_at >= inicio, Mensaje.created_at < fin)
-        )
-    )
-    total_consultas = total_msgs_result.scalar() or 0
-
-    # Promedio de mensajes por conversación
-    promedio_msgs = round(total_consultas / max(total_conversaciones, 1), 1)
-
-    # Usuarios activos por dirección
-    usuarios_des_result = await db.execute(
+    usuarios_des = (await db.execute(
         select(func.count(func.distinct(Conversacion.usuario_id))).where(
-            and_(
-                Conversacion.created_at >= inicio,
-                Conversacion.created_at < fin,
-                Conversacion.direccion == "DES",
-            )
+            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin, Conversacion.direccion == "DES")
         )
-    )
-    usuarios_des = usuarios_des_result.scalar() or 0
+    )).scalar() or 0
 
-    usuarios_dvf_result = await db.execute(
+    usuarios_dvf = (await db.execute(
         select(func.count(func.distinct(Conversacion.usuario_id))).where(
-            and_(
-                Conversacion.created_at >= inicio,
-                Conversacion.created_at < fin,
-                Conversacion.direccion == "DVF",
-            )
+            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin, Conversacion.direccion == "DVF")
         )
-    )
-    usuarios_dvf = usuarios_dvf_result.scalar() or 0
+    )).scalar() or 0
 
-    # Consultas por dirección (basado en conversaciones)
-    consultas_des_result = await db.execute(
+    consultas_des = (await db.execute(
         select(func.sum(Conversacion.total_mensajes)).where(
-            and_(
-                Conversacion.created_at >= inicio,
-                Conversacion.created_at < fin,
-                Conversacion.direccion == "DES",
-            )
+            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin, Conversacion.direccion == "DES")
         )
-    )
-    consultas_des = consultas_des_result.scalar() or 0
+    )).scalar() or 0
 
-    consultas_dvf_result = await db.execute(
+    consultas_dvf = (await db.execute(
         select(func.sum(Conversacion.total_mensajes)).where(
-            and_(
-                Conversacion.created_at >= inicio,
-                Conversacion.created_at < fin,
-                Conversacion.direccion == "DVF",
-            )
+            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin, Conversacion.direccion == "DVF")
         )
-    )
-    consultas_dvf = consultas_dvf_result.scalar() or 0
+    )).scalar() or 0
 
-    # Documentos procesados RAG
-    docs_result = await db.execute(
+    docs_procesados = (await db.execute(
         select(func.count(Documento.id)).where(
-            and_(
-                Documento.created_at >= inicio,
-                Documento.created_at < fin,
-                Documento.estado == "indexado",
-            )
+            and_(Documento.created_at >= inicio, Documento.created_at < fin, Documento.estado == "indexado")
         )
-    )
-    docs_procesados = docs_result.scalar() or 0
+    )).scalar() or 0
 
-    # Formatos generados con IA
-    formatos_result = await db.execute(
+    formatos_ia = (await db.execute(
         select(func.count(FormatoGenerado.id)).where(
-            and_(
-                FormatoGenerado.created_at >= inicio,
-                FormatoGenerado.created_at < fin,
-                FormatoGenerado.generado_con_ia == True,
-            )
+            and_(FormatoGenerado.created_at >= inicio, FormatoGenerado.created_at < fin, FormatoGenerado.generado_con_ia == True)
         )
-    )
-    formatos_ia = formatos_result.scalar() or 0
+    )).scalar() or 0
 
-    # Hallazgos asistidos con IA
-    hallazgos_result = await db.execute(
-        select(func.count(Hallazgo.id)).where(
-            and_(
-                Hallazgo.created_at >= inicio,
-                Hallazgo.created_at < fin,
-            )
-        )
-    )
-    hallazgos_ia = hallazgos_result.scalar() or 0
+    hallazgos_ia = (await db.execute(
+        select(func.count(Hallazgo.id)).where(and_(Hallazgo.created_at >= inicio, Hallazgo.created_at < fin))
+    )).scalar() or 0
 
-    # Feedback (de mensajes del asistente)
-    feedback_pos_result = await db.execute(
-        select(func.count(Mensaje.id)).where(
-            and_(
-                Mensaje.created_at >= inicio,
-                Mensaje.created_at < fin,
-                Mensaje.feedback_puntuacion == 1,
-            )
-        )
-    )
-    feedback_pos = feedback_pos_result.scalar() or 0
+    feedback_pos = (await db.execute(
+        select(func.count(Mensaje.id)).where(and_(Mensaje.created_at >= inicio, Mensaje.created_at < fin, Mensaje.feedback_puntuacion == 1))
+    )).scalar() or 0
 
-    feedback_neg_result = await db.execute(
-        select(func.count(Mensaje.id)).where(
-            and_(
-                Mensaje.created_at >= inicio,
-                Mensaje.created_at < fin,
-                Mensaje.feedback_puntuacion == -1,
-            )
-        )
-    )
-    feedback_neg = feedback_neg_result.scalar() or 0
+    feedback_neg = (await db.execute(
+        select(func.count(Mensaje.id)).where(and_(Mensaje.created_at >= inicio, Mensaje.created_at < fin, Mensaje.feedback_puntuacion == -1))
+    )).scalar() or 0
 
-    feedback_neutral_result = await db.execute(
-        select(func.count(Mensaje.id)).where(
-            and_(
-                Mensaje.created_at >= inicio,
-                Mensaje.created_at < fin,
-                Mensaje.feedback_puntuacion == 0,
-            )
-        )
-    )
-    feedback_neu = feedback_neutral_result.scalar() or 0
+    feedback_neu = (await db.execute(
+        select(func.count(Mensaje.id)).where(and_(Mensaje.created_at >= inicio, Mensaje.created_at < fin, Mensaje.feedback_puntuacion == 0))
+    )).scalar() or 0
 
-    total_con_feedback = feedback_pos + feedback_neg + feedback_neu
-    tasa_satisfaccion = round(
-        (feedback_pos / max(total_con_feedback, 1)) * 100, 1,
-    )
+    total_fb = feedback_pos + feedback_neg + feedback_neu
+    tasa_sat = round((feedback_pos / max(total_fb, 1)) * 100, 1)
 
-    # Modelos utilizados (distintos)
-    modelos_result = await db.execute(
+    modelos = [m for m in (await db.execute(
         select(func.distinct(Conversacion.modelo_utilizado)).where(
-            and_(
-                Conversacion.created_at >= inicio,
-                Conversacion.created_at < fin,
-                Conversacion.modelo_utilizado.isnot(None),
-            )
+            and_(Conversacion.created_at >= inicio, Conversacion.created_at < fin, Conversacion.modelo_utilizado.isnot(None))
         )
-    )
-    modelos = [m for m in modelos_result.scalars().all() if m]
+    )).scalars().all() if m]
 
-    return {
+    datos = {
         "periodo_trimestre": trimestre,
-        "periodo_inicio": inicio,
-        "periodo_fin": fin,
+        "periodo_inicio": inicio.isoformat(),
+        "periodo_fin": fin.isoformat(),
         "total_consultas": total_consultas,
-        "total_conversaciones": total_conversaciones,
+        "total_conversaciones": total_conv,
         "promedio_mensajes_por_conversacion": promedio_msgs,
         "usuarios_activos_des": usuarios_des,
         "usuarios_activos_dvf": usuarios_dvf,
@@ -612,10 +356,10 @@ async def generar_reporte_circular_023(
         "feedback_positivo": feedback_pos,
         "feedback_negativo": feedback_neg,
         "feedback_neutral": feedback_neu,
-        "tasa_satisfaccion": tasa_satisfaccion,
+        "tasa_satisfaccion": tasa_sat,
         "modelos_utilizados": modelos or ["Sin datos en el periodo"],
-        "latencia_promedio_ms": 0.0,  # TODO: calcular desde metadata_modelo
-        "total_advertencias_privacidad": 0,  # TODO: contar desde logs cuando se implemente persistencia de alertas
+        "latencia_promedio_ms": 0.0,
+        "total_advertencias_privacidad": 0,
         "disclaimers_incluidos": "Todos los mensajes incluyen disclaimer de validacion humana",
         "principios_implementados": [
             "Transparencia", "Responsabilidad", "Privacidad",
@@ -626,4 +370,76 @@ async def generar_reporte_circular_023(
             "Requiere revision y aprobacion del Director de TIC "
             "antes de remision al Despacho del Contralor General."
         ),
+    }
+
+    if formato == "docx":
+        from app.analytics.exportador import generar_reporte_circular_023_docx
+        docx_bytes = generar_reporte_circular_023_docx(datos)
+        return StreamingResponse(
+            io.BytesIO(docx_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename=reporte_circular_023_{trimestre}.docx"},
+        )
+
+    return datos
+
+
+# ── Modelos (legacy compat) ─────────────────────────────────────────────────
+
+@enrutador.get("/modelos", summary="Metricas de modelos LLM")
+async def obtener_metricas_modelos(
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> list[dict[str, Any]]:
+    """Retorna metricas de rendimiento por modelo LLM."""
+    from app.models.conversacion import Conversacion
+    ahora = datetime.now(timezone.utc)
+    inicio = ahora - timedelta(days=30)
+
+    q = await db.execute(
+        select(
+            Conversacion.modelo_utilizado,
+            func.count(Conversacion.id),
+            func.sum(Conversacion.total_mensajes),
+        ).where(
+            and_(Conversacion.created_at >= inicio, Conversacion.modelo_utilizado.isnot(None))
+        ).group_by(Conversacion.modelo_utilizado)
+    )
+
+    modelos = []
+    for row in q.all():
+        modelos.append({
+            "modelo": row[0],
+            "total_invocaciones": row[1],
+            "total_mensajes": row[2] or 0,
+            "latencia_promedio_ms": 0.0,
+            "periodo_inicio": inicio.isoformat(),
+            "periodo_fin": ahora.isoformat(),
+        })
+
+    if not modelos:
+        modelos.append({
+            "modelo": "Sin datos",
+            "total_invocaciones": 0,
+            "total_mensajes": 0,
+            "latencia_promedio_ms": 0.0,
+            "periodo_inicio": inicio.isoformat(),
+            "periodo_fin": ahora.isoformat(),
+        })
+
+    return modelos
+
+
+@enrutador.get("/trazabilidad", summary="Logs de trazabilidad")
+async def obtener_trazabilidad(
+    pagina: int = Query(default=1, ge=1),
+    tamano_pagina: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(obtener_sesion_db),
+) -> dict[str, Any]:
+    """Retorna registros de trazabilidad con paginacion."""
+    return {
+        "registros": [],
+        "total": 0,
+        "pagina": pagina,
+        "tamano_pagina": tamano_pagina,
+        "total_paginas": 0,
     }

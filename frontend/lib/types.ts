@@ -458,3 +458,59 @@ export interface MetricasCapacitacion {
     promedio_quiz: number;
   }>;
 }
+
+// === MODELOS Y FINE-TUNING ===
+
+/** Informacion de dependencias de entrenamiento */
+export interface DependenciasEntrenamiento {
+  torch: boolean;
+  cuda_disponible: boolean;
+  gpu_nombre?: string;
+  gpu_memoria_gb?: number;
+  transformers: boolean;
+  peft: boolean;
+  bitsandbytes: boolean;
+  datasets: boolean;
+  trl: boolean;
+  todas_disponibles: boolean;
+}
+
+/** Resumen del pipeline de fine-tuning */
+export interface ResumenFinetuning {
+  dependencias_listas: boolean;
+  cuda_disponible: boolean;
+  gpu: string;
+  tiene_modelo_entrenado: boolean;
+  benchmarks_ejecutados: number;
+  tareas_activas: number;
+  tareas_resumen: Record<string, number>;
+}
+
+/** Resultado de un benchmark individual */
+export interface ResultadoBenchmarkItem {
+  archivo: string;
+  modelo: string;
+  tipo: string;
+  fecha: string;
+  promedio: number;
+}
+
+/** Pregunta del benchmark */
+export interface PreguntaBenchmark {
+  id: string;
+  categoria: string;
+  pregunta: string;
+  criterios: string;
+}
+
+/** Tarea de finetuning en ejecucion */
+export interface TareaFinetuning {
+  id: string;
+  tipo: 'entrenamiento' | 'benchmark' | 'merge';
+  estado: 'en_ejecucion' | 'completado' | 'error';
+  progreso: number;
+  inicio: string;
+  fin: string | null;
+  resultado: Record<string, unknown> | null;
+  error: string | null;
+}
