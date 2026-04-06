@@ -380,6 +380,66 @@ ROLES: dict[str, dict[str, Any]] = {
             "Generar reporte observatorio",
         ],
     },
+    "lider_tecnico": {
+        "descripcion": "Lider Tecnico — Arquitectura, desarrollo y despliegue del sistema",
+        "permisos": [
+            "chat", "chat_tutor", "rag_consultar", "rag_administrar",
+            "documentos_cargar", "documentos_ver", "documentos_eliminar",
+            "hallazgos_crear", "hallazgos_editar", "hallazgos_ver", "hallazgos_aprobar",
+            "formatos_generar", "formatos_ver", "formatos_aprobar",
+            "auditoria_ver", "auditoria_crear", "auditoria_editar",
+            "proyecto_crear", "proyecto_editar",
+            "analitica_ver", "analitica_administrar",
+            "observatorio_ver", "observatorio_administrar",
+            "observatorio_alertas_crear", "observatorio_alertas_editar",
+            "usuarios_ver", "usuarios_crear", "usuarios_editar", "usuarios_desactivar",
+            "sistema_configurar", "logs_ver",
+            "capacitacion", "biblioteca", "quizzes",
+        ],
+        "puede_ver": [
+            "normativo", "institucional", "academico", "tecnico_tic",
+            "estadistico", "jurisprudencial", "auditoria", "DES", "DVF",
+        ],
+        "modulos": [
+            "chat", "documentos", "hallazgos", "formatos", "auditoria",
+            "analitica", "observatorio", "administracion", "logs",
+            "capacitacion", "biblioteca", "simulador",
+        ],
+        "acciones_rapidas": [
+            "Ver estado del sistema",
+            "Administrar colecciones RAG",
+            "Gestionar usuarios",
+            "Ver logs de trazabilidad",
+            "Configurar modelos LLM",
+        ],
+    },
+    "coordinador": {
+        "descripcion": "Coordinador — Chat, auditorias, reportes y politicas",
+        "permisos": [
+            "chat", "rag_consultar",
+            "documentos_cargar", "documentos_ver",
+            "hallazgos_crear", "hallazgos_editar", "hallazgos_ver",
+            "formatos_generar", "formatos_ver",
+            "auditoria_ver", "auditoria_crear", "auditoria_editar",
+            "proyecto_crear", "proyecto_editar",
+            "analitica_ver",
+            "capacitacion",
+        ],
+        "puede_ver": [
+            "normativo", "institucional", "academico", "tecnico_tic",
+            "estadistico", "jurisprudencial", "auditoria",
+        ],
+        "modulos": [
+            "chat", "documentos", "hallazgos", "formatos",
+            "auditoria", "analitica", "capacitacion",
+        ],
+        "acciones_rapidas": [
+            "Consultar normativa vigente",
+            "Ver estado de auditorias",
+            "Generar informe de avance",
+            "Consultar politicas internas",
+        ],
+    },
     "aprendiz": {
         "descripcion": "Funcionario en proceso de induccion/capacitacion",
         "permisos": [

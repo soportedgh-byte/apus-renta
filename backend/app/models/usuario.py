@@ -29,6 +29,8 @@ class RolUsuario(str, enum.Enum):
     DIRECTOR_DES = "director_des"
     DIRECTOR_DVF = "director_dvf"
     ADMIN_TIC = "admin_tic"
+    LIDER_TECNICO = "lider_tecnico"
+    COORDINADOR = "coordinador"
     OBSERVATORIO = "observatorio"
     APRENDIZ = "aprendiz"
 
