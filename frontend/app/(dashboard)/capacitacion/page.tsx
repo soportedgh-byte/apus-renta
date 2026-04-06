@@ -1,306 +1,342 @@
 'use client';
 
 /**
- * CecilIA v2 — Modulo de Capacitacion
- * Pagina principal: rutas de aprendizaje, progreso y acceso a lecciones
- * Sprint 6
+ * CecilIA v2 — Centro de Capacitacion
+ * Pagina principal redise\u00f1ada: rutas, herramientas adaptativas, progreso real
+ * Sprint: Capacitacion 2.0
  */
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  BookOpen, Clock, CheckCircle, Award, Trophy,
-  ChevronRight, BookMarked, BarChart3, Sparkles,
-  Target, Brain, Zap,
+  BookOpen, Clock, CheckCircle, Trophy, ChevronRight,
+  BookMarked, Sparkles, Target, Brain, Zap, Headphones,
+  Layers, GraduationCap, Loader2, ArrowRight,
 } from 'lucide-react';
 import { obtenerUsuario } from '@/lib/auth';
 import { apiCliente } from '@/lib/api';
-import type { RutaAprendizaje } from '@/lib/types';
+import type { RutaAprendizaje, PerfilGamificacion } from '@/lib/types';
 
-// ── Datos demo (fallback si API no responde) ────────────────────────────────
-const RUTAS_DEMO: RutaAprendizaje[] = [
-  {
-    id: 'ruta-001', nombre: 'Conoce la CGR', descripcion: 'Estructura, mision y funcionamiento de la Contraloria General',
-    icono: '🏛️', color: '#1A5276', direccion: 'TODOS', orden: 1, activa: true, total_lecciones: 6, created_at: '',
-  },
-  {
-    id: 'ruta-002', nombre: 'Auditoria DVF - Paso a paso', descripcion: 'Las 5 fases del proceso auditor y los 30 formatos de la GAF',
-    icono: '🔍', color: '#C9A84C', direccion: 'DVF', orden: 2, activa: true, total_lecciones: 10, created_at: '',
-  },
-  {
-    id: 'ruta-003', nombre: 'Estudios Sectoriales DES', descripcion: 'Control fiscal macro, estudios sectoriales y alertas tempranas',
-    icono: '📊', color: '#27AE60', direccion: 'DES', orden: 3, activa: true, total_lecciones: 7, created_at: '',
-  },
-  {
-    id: 'ruta-004', nombre: 'Normativa Esencial', descripcion: 'Leyes, decretos y ISSAI fundamentales para el control fiscal',
-    icono: '⚖️', color: '#8E44AD', direccion: 'TODOS', orden: 4, activa: true, total_lecciones: 8, created_at: '',
-  },
-];
-
-const PROGRESO_DEMO: Record<string, { completadas: number; porcentaje: number }> = {
-  'ruta-001': { completadas: 3, porcentaje: 50 },
-  'ruta-002': { completadas: 1, porcentaje: 10 },
-  'ruta-003': { completadas: 0, porcentaje: 0 },
-  'ruta-004': { completadas: 0, porcentaje: 0 },
-};
-
-// ── Componente: Tarjeta de Ruta ─────────────────────────────────────────────
+// ── Tarjeta de Ruta con dise\u00f1o premium ──────────────────────────────────────
 function TarjetaRuta({
   ruta,
   progreso,
+  lecciones,
 }: {
   ruta: RutaAprendizaje;
   progreso: { completadas: number; porcentaje: number };
+  lecciones: any[];
 }) {
   const estaCompleta = progreso.porcentaje === 100;
   const enProgreso = progreso.porcentaje > 0 && progreso.porcentaje < 100;
 
+  // Encontrar la primera leccion no completada para navegar
+  const primeraLeccion = lecciones.length > 0 ? lecciones[0] : null;
+  const href = primeraLeccion
+    ? `/capacitacion/${ruta.id}/${primeraLeccion.id}`
+    : `/capacitacion/${ruta.id}`;
+
   return (
     <Link
-      href={`/capacitacion/${ruta.id}/${ruta.id}-1`}
-      className="group relative flex flex-col rounded-xl border border-[#2D3748]/50 bg-[#1A2332]/60 p-5 transition-all hover:border-opacity-80 hover:bg-[#1A2332]/80 hover:shadow-lg"
-      style={{ borderColor: `${ruta.color}30` }}
+      href={href}
+      className="group relative flex flex-col rounded-2xl border bg-gradient-to-b from-[#1A2332]/80 to-[#0F1419]/80 p-6 transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+      style={{ borderColor: `${ruta.color}25` }}
     >
-      {/* Badge estado */}
+      {/* Glow effect on hover */}
+      <div
+        className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+        style={{ boxShadow: `inset 0 1px 0 0 ${ruta.color}20, 0 0 30px -10px ${ruta.color}15` }}
+      />
+
+      {/* Badge completada */}
       {estaCompleta && (
-        <div className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-green-500/20 border border-green-500/40">
-          <Trophy className="h-3.5 w-3.5 text-green-400" />
+        <div className="absolute -top-2.5 -right-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#27AE60] shadow-lg shadow-[#27AE60]/30">
+          <Trophy className="h-4 w-4 text-white" />
         </div>
       )}
 
-      {/* Icono + Nombre */}
-      <div className="flex items-start gap-3 mb-3">
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-xl text-2xl"
-          style={{ backgroundColor: `${ruta.color}15`, border: `1px solid ${ruta.color}30` }}
-        >
-          {ruta.icono}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-[#E8EAED] group-hover:text-white transition-colors">
-            {ruta.nombre}
-          </h3>
+      <div className="relative">
+        {/* Icono + Direccion */}
+        <div className="flex items-center justify-between mb-4">
+          <div
+            className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-lg"
+            style={{ backgroundColor: `${ruta.color}12`, border: `1px solid ${ruta.color}20` }}
+          >
+            {ruta.icono}
+          </div>
           <span
-            className="inline-block mt-1 rounded-full px-2 py-0.5 text-[9px] font-semibold"
-            style={{ backgroundColor: `${ruta.color}20`, color: ruta.color }}
+            className="rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider"
+            style={{ backgroundColor: `${ruta.color}12`, color: ruta.color }}
           >
             {ruta.direccion}
           </span>
         </div>
-      </div>
 
-      {/* Descripcion */}
-      <p className="text-xs text-[#9AA0A6] mb-4 line-clamp-2">{ruta.descripcion}</p>
+        {/* Titulo */}
+        <h3 className="text-base font-bold text-[#E8EAED] mb-2 group-hover:text-white transition-colors leading-tight">
+          {ruta.nombre}
+        </h3>
+        <p className="text-xs text-[#6B7B8D] mb-5 line-clamp-2 leading-relaxed">{ruta.descripcion}</p>
 
-      {/* Info lecciones */}
-      <div className="flex items-center gap-3 text-[10px] text-[#5F6368] mb-3">
-        <span className="flex items-center gap-1">
-          <BookOpen className="h-3 w-3" />
-          {ruta.total_lecciones} lecciones
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          ~{ruta.total_lecciones * 15} min
-        </span>
-      </div>
-
-      {/* Barra de progreso */}
-      <div className="mt-auto">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] text-[#9AA0A6]">
-            {progreso.completadas}/{ruta.total_lecciones} completadas
+        {/* Meta */}
+        <div className="flex items-center gap-4 text-[10px] text-[#4A5568] mb-4">
+          <span className="flex items-center gap-1.5">
+            <BookOpen className="h-3 w-3" />
+            {ruta.total_lecciones} lecciones
           </span>
-          <span className="text-[10px] font-semibold" style={{ color: ruta.color }}>
-            {progreso.porcentaje}%
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3 w-3" />
+            ~{ruta.total_lecciones * 15} min
           </span>
         </div>
-        <div className="h-1.5 rounded-full bg-[#2D3748]/50 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-700 ease-out"
-            style={{ width: `${progreso.porcentaje}%`, backgroundColor: ruta.color }}
-          />
-        </div>
-      </div>
 
-      {/* CTA */}
-      <div className="mt-3 flex items-center justify-end">
-        <span
-          className="flex items-center gap-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ color: ruta.color }}
-        >
-          {enProgreso ? 'Continuar' : estaCompleta ? 'Repasar' : 'Comenzar'}
-          <ChevronRight className="h-3 w-3" />
-        </span>
+        {/* Barra de progreso */}
+        <div>
+          <div className="h-2 rounded-full bg-[#1A2332] overflow-hidden border border-[#2D3748]/30">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
+              style={{
+                width: `${progreso.porcentaje}%`,
+                background: `linear-gradient(90deg, ${ruta.color}, ${ruta.color}CC)`,
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[10px] text-[#6B7B8D]">
+              {progreso.completadas}/{ruta.total_lecciones}
+            </span>
+            <span
+              className="flex items-center gap-1 text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-all"
+              style={{ color: ruta.color }}
+            >
+              {estaCompleta ? 'Repasar' : enProgreso ? 'Continuar' : 'Comenzar'}
+              <ArrowRight className="h-3 w-3" />
+            </span>
+          </div>
+        </div>
       </div>
     </Link>
   );
 }
 
-// ── Componente: Modulos Capacitacion 2.0 ──────────────────────────────────��─
-function ModulosCapacitacion() {
-  const modulos = [
-    { href: '/capacitacion/cuestionario', icono: Brain, etiqueta: 'Descubre tu estilo', desc: 'Cuestionario VARK', color: '#E74C3C' },
-    { href: '/capacitacion/mi-progreso', icono: Trophy, etiqueta: 'Mi progreso', desc: 'XP, nivel, insignias', color: '#C9A84C' },
-    { href: '/capacitacion/biblioteca', icono: Sparkles, etiqueta: 'Biblioteca', desc: 'Podcasts, flashcards, infografias', color: '#8E44AD' },
-    { href: '/capacitacion/glosario', icono: BookMarked, etiqueta: 'Glosario', desc: 'Terminos de control fiscal', color: '#27AE60' },
-    { href: '/capacitacion/simulador', icono: Target, etiqueta: 'Simulador', desc: 'Escenarios de auditoria', color: '#1A5276' },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-      {modulos.map((m) => (
-        <Link
-          key={m.href}
-          href={m.href}
-          className="flex flex-col items-center gap-2 rounded-xl border border-[#2D3748]/50 bg-[#1A2332]/40 p-4 text-center transition-all hover:bg-[#1A2332]/70 hover:border-opacity-80 group"
-          style={{ borderColor: `${m.color}20` }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${m.color}10`, border: `1px solid ${m.color}25` }}>
-            <m.icono className="h-5 w-5 group-hover:scale-110 transition-transform" style={{ color: m.color }} />
-          </div>
-          <span className="text-[11px] font-semibold text-[#E8EAED]">{m.etiqueta}</span>
-          <span className="text-[9px] text-[#5F6368]">{m.desc}</span>
-        </Link>
-      ))}
-    </div>
-  );
-}
-
 // ── Pagina Principal ────────────────────────────────────────────────────────
 export default function PaginaCapacitacion() {
-  const [rutas, setRutas] = useState<RutaAprendizaje[]>(RUTAS_DEMO);
-  const [progreso, setProgreso] = useState<Record<string, { completadas: number; porcentaje: number }>>(PROGRESO_DEMO);
+  const [rutas, setRutas] = useState<RutaAprendizaje[]>([]);
+  const [progreso, setProgreso] = useState<Record<string, { completadas: number; porcentaje: number }>>({});
+  const [leccionesPorRuta, setLeccionesPorRuta] = useState<Record<string, any[]>>({});
+  const [gamificacion, setGamificacion] = useState<PerfilGamificacion | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [perfilEstilo, setPerfilEstilo] = useState<any>(null);
   const usuario = obtenerUsuario();
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  useEffect(() => { cargarDatos(); }, []);
 
   const cargarDatos = async () => {
+    setCargando(true);
     try {
+      // Cargar rutas
       const rutasApi = await apiCliente.get<RutaAprendizaje[]>('/capacitacion/rutas');
-      if (rutasApi && rutasApi.length > 0) setRutas(rutasApi);
-    } catch {
-      // Usar datos demo
-    }
+      if (rutasApi && rutasApi.length > 0) {
+        setRutas(rutasApi);
+        // Cargar lecciones de cada ruta
+        const leccionesMap: Record<string, any[]> = {};
+        for (const ruta of rutasApi) {
+          try {
+            const lecs = await apiCliente.get<any[]>(`/capacitacion/rutas/${ruta.id}/lecciones`);
+            leccionesMap[ruta.id] = lecs || [];
+          } catch { leccionesMap[ruta.id] = []; }
+        }
+        setLeccionesPorRuta(leccionesMap);
+      }
+    } catch { /* sin rutas */ }
 
     if (usuario?.id) {
       try {
         const progresoApi = await apiCliente.get<any>(`/capacitacion/progreso?usuario_id=${usuario.id}`);
-        if (progresoApi && progresoApi.por_ruta) {
+        if (progresoApi?.por_ruta) {
           const p: Record<string, { completadas: number; porcentaje: number }> = {};
           for (const r of progresoApi.por_ruta) {
             p[r.ruta_id] = { completadas: r.completadas, porcentaje: r.porcentaje };
           }
           setProgreso(p);
         }
-      } catch {
-        // Usar demo
-      }
+      } catch { /* sin progreso */ }
+
+      try {
+        const gam = await apiCliente.get<PerfilGamificacion>(`/capacitacion/gamificacion/${usuario.id}`);
+        setGamificacion(gam);
+      } catch { /* sin gamificacion */ }
+
+      try {
+        const perfil = await apiCliente.get<any>(`/capacitacion/perfil-aprendizaje/${usuario.id}`);
+        if (perfil?.tiene_perfil) setPerfilEstilo(perfil);
+      } catch { /* sin perfil */ }
     }
+    setCargando(false);
   };
 
-  // Calcular estadisticas generales
+  // Stats
   const totalLecciones = rutas.reduce((sum, r) => sum + r.total_lecciones, 0);
   const totalCompletadas = Object.values(progreso).reduce((sum, p) => sum + p.completadas, 0);
   const porcentajeGeneral = totalLecciones > 0 ? Math.round((totalCompletadas / totalLecciones) * 100) : 0;
 
+  const herramientas = [
+    { href: '/capacitacion/cuestionario', icono: Brain, nombre: 'Estilo de aprendizaje', desc: 'Descubre tu perfil VARK', color: '#E74C3C', badge: perfilEstilo ? perfilEstilo.estilo_predominante : null },
+    { href: '/capacitacion/mi-progreso', icono: Trophy, nombre: 'Mi progreso', desc: 'XP, nivel e insignias', color: '#C9A84C', badge: gamificacion ? `${gamificacion.xp_total} XP` : null },
+    { href: '/capacitacion/simulador', icono: Target, nombre: 'Simulador', desc: '3 escenarios guiados', color: '#1A5276' },
+    { href: '/capacitacion/biblioteca', icono: Sparkles, nombre: 'Crear contenido', desc: 'Podcasts, flashcards, diagramas', color: '#8E44AD' },
+    { href: '/capacitacion/glosario', icono: BookMarked, nombre: 'Glosario fiscal', desc: 'Terminos y definiciones', color: '#27AE60' },
+  ];
+
+  if (cargando) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-[#0F1419] gap-3">
+        <Loader2 className="h-8 w-8 text-[#C9A84C] animate-spin" />
+        <p className="text-xs text-[#5F6368]">Cargando centro de capacitacion...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#0F1419] text-[#E8EAED] overflow-y-auto">
-      {/* Header */}
-      <div className="border-b border-[#2D3748]/30 px-6 py-5">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#C9A84C]/10 border border-[#C9A84C]/20">
-            <BookOpen className="h-5 w-5 text-[#C9A84C]" />
+      {/* Header con gradiente */}
+      <div className="relative overflow-hidden border-b border-[#2D3748]/30">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#C9A84C]/5 via-transparent to-[#1A5276]/5" />
+        <div className="relative px-8 py-7">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/20 shadow-lg shadow-[#C9A84C]/5">
+                <GraduationCap className="h-6 w-6 text-[#C9A84C]" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-[#E8EAED]">
+                  Centro de Capacitacion
+                </h1>
+                <p className="text-xs text-[#6B7B8D] mt-0.5">
+                  {usuario?.nombre_completo
+                    ? `Bienvenido, ${usuario.nombre_completo.split(' ')[0]}`
+                    : 'Aprende sobre control fiscal con CecilIA'}
+                </p>
+              </div>
+            </div>
+
+            {/* Nivel badge */}
+            {gamificacion && (
+              <div className="hidden sm:flex items-center gap-3 rounded-xl bg-[#1A2332]/80 border border-[#C9A84C]/15 px-4 py-2.5">
+                <div className="text-center">
+                  <p className="text-[9px] text-[#6B7B8D] uppercase tracking-wider">Nivel</p>
+                  <p className="text-sm font-bold text-[#C9A84C]">{gamificacion.nivel}</p>
+                </div>
+                <div className="w-px h-8 bg-[#2D3748]/50" />
+                <div className="text-center">
+                  <p className="text-[9px] text-[#6B7B8D] uppercase tracking-wider">XP</p>
+                  <p className="text-sm font-bold text-[#E8EAED]">{gamificacion.xp_total}</p>
+                </div>
+                {gamificacion.racha_dias > 0 && (
+                  <>
+                    <div className="w-px h-8 bg-[#2D3748]/50" />
+                    <div className="text-center">
+                      <p className="text-[9px] text-[#6B7B8D] uppercase tracking-wider">Racha</p>
+                      <p className="text-sm font-bold text-[#E74C3C]">{gamificacion.racha_dias}d</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <h1 className="text-lg font-titulo font-bold text-[#C9A84C]">
-              Centro de Capacitacion
-            </h1>
-            <p className="text-xs text-[#5F6368]">
-              Bienvenido{usuario?.nombre_completo ? `, ${usuario.nombre_completo.split(' ')[0]}` : ''}. Aprende sobre control fiscal con CecilIA.
-            </p>
-          </div>
+
+          {/* Barra de progreso general */}
+          {totalLecciones > 0 && (
+            <div className="mt-5 max-w-2xl">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-[#6B7B8D]">
+                  Progreso general: {totalCompletadas} de {totalLecciones} lecciones
+                </span>
+                <span className="text-[10px] font-bold text-[#C9A84C]">{porcentajeGeneral}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-[#1A2332] overflow-hidden border border-[#2D3748]/30">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8D48B] transition-all duration-1000"
+                  style={{ width: `${porcentajeGeneral}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 p-6 space-y-6">
-        {/* KPIs resumen */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-lg border border-[#2D3748]/50 bg-[#1A2332]/40 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <BookOpen className="h-4 w-4 text-[#C9A84C]" />
-              <span className="text-[10px] text-[#5F6368]">Rutas disponibles</span>
-            </div>
-            <p className="text-xl font-bold text-[#E8EAED]">{rutas.length}</p>
-          </div>
-          <div className="rounded-lg border border-[#2D3748]/50 bg-[#1A2332]/40 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="h-4 w-4 text-[#27AE60]" />
-              <span className="text-[10px] text-[#5F6368]">Lecciones completadas</span>
-            </div>
-            <p className="text-xl font-bold text-[#E8EAED]">{totalCompletadas}/{totalLecciones}</p>
-          </div>
-          <div className="rounded-lg border border-[#2D3748]/50 bg-[#1A2332]/40 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="h-4 w-4 text-[#2471A3]" />
-              <span className="text-[10px] text-[#5F6368]">Avance general</span>
-            </div>
-            <p className="text-xl font-bold text-[#E8EAED]">{porcentajeGeneral}%</p>
-          </div>
-          <div className="rounded-lg border border-[#2D3748]/50 bg-[#1A2332]/40 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Award className="h-4 w-4 text-[#8E44AD]" />
-              <span className="text-[10px] text-[#5F6368]">Quizzes aprobados</span>
-            </div>
-            <p className="text-xl font-bold text-[#E8EAED]">0</p>
-          </div>
-        </div>
-
-        {/* Barra de progreso general */}
-        <div className="rounded-lg border border-[#C9A84C]/20 bg-[#C9A84C]/5 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-[#C9A84C]">Tu progreso general</span>
-            <span className="text-xs font-bold text-[#C9A84C]">{porcentajeGeneral}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-[#2D3748]/50 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8D48B] transition-all duration-1000"
-              style={{ width: `${porcentajeGeneral}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Grid de rutas */}
+      <div className="flex-1 px-8 py-6 space-y-8">
+        {/* Herramientas de aprendizaje */}
         <div>
-          <h2 className="text-sm font-semibold text-[#E8EAED] mb-3 flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-[#C9A84C]" />
-            Rutas de Aprendizaje
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-            {rutas.map((ruta) => (
-              <TarjetaRuta
-                key={ruta.id}
-                ruta={ruta}
-                progreso={progreso[ruta.id] || { completadas: 0, porcentaje: 0 }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Modulos Capacitacion 2.0 */}
-        <div>
-          <h2 className="text-sm font-semibold text-[#E8EAED] mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-bold text-[#E8EAED] mb-4 flex items-center gap-2">
             <Zap className="h-4 w-4 text-[#C9A84C]" />
-            Herramientas de Aprendizaje
+            Herramientas de aprendizaje
           </h2>
-          <ModulosCapacitacion />
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {herramientas.map((h) => {
+              const Icono = h.icono;
+              return (
+                <Link
+                  key={h.href}
+                  href={h.href}
+                  className="group flex flex-col rounded-xl border bg-[#1A2332]/40 p-4 transition-all duration-300 hover:bg-[#1A2332]/80 hover:-translate-y-0.5"
+                  style={{ borderColor: `${h.color}15` }}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: `${h.color}10`, border: `1px solid ${h.color}20` }}
+                    >
+                      <Icono className="h-4.5 w-4.5" style={{ color: h.color }} />
+                    </div>
+                    {h.badge && (
+                      <span className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase" style={{ backgroundColor: `${h.color}15`, color: h.color }}>
+                        {h.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-semibold text-[#E8EAED]">{h.nombre}</span>
+                  <span className="text-[9px] text-[#4A5568] mt-0.5">{h.desc}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Rutas de aprendizaje */}
+        <div>
+          <h2 className="text-sm font-bold text-[#E8EAED] mb-4 flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-[#C9A84C]" />
+            Rutas de aprendizaje
+            {rutas.length > 0 && (
+              <span className="text-[10px] font-normal text-[#4A5568]">({rutas.length} disponibles)</span>
+            )}
+          </h2>
+
+          {rutas.length === 0 ? (
+            <div className="rounded-2xl border border-[#2D3748]/30 bg-[#1A2332]/30 p-12 text-center">
+              <GraduationCap className="h-12 w-12 text-[#2D3748] mx-auto mb-4" />
+              <p className="text-sm text-[#6B7B8D] mb-1">No hay rutas de aprendizaje disponibles</p>
+              <p className="text-[10px] text-[#4A5568]">Ejecute el seed de capacitacion para cargar las rutas iniciales</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {rutas.map((ruta) => (
+                <TarjetaRuta
+                  key={ruta.id}
+                  ruta={ruta}
+                  progreso={progreso[ruta.id] || { completadas: 0, porcentaje: 0 }}
+                  lecciones={leccionesPorRuta[ruta.id] || []}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Disclaimer */}
-        <div className="rounded-lg border border-[#C9A84C]/20 bg-[#C9A84C]/5 p-3 text-center">
-          <p className="text-[10px] text-[#C9A84C]/80">
-            📚 Contenido con fines educativos — Datos ficticios de ejemplo — CecilIA Modo Tutor — Circular 023 CGR
+        <div className="rounded-xl border border-[#C9A84C]/10 bg-[#C9A84C]/3 px-4 py-2.5 text-center">
+          <p className="text-[9px] text-[#6B7B8D]">
+            Contenido con fines educativos — Asistido por IA — Requiere validacion humana — Circular 023 CGR
           </p>
         </div>
       </div>

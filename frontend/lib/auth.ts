@@ -91,7 +91,7 @@ export function puedeVerDireccion(direccion: Direccion): boolean {
   const usuario = obtenerUsuario();
   if (!usuario) return false;
 
-  const rolesAccesoDual = ['admin_tic', 'observatorio'];
+  const rolesAccesoDual = ['admin_tic', 'observatorio', 'lider_tecnico', 'coordinador'];
   if (rolesAccesoDual.includes(usuario.rol)) return true;
 
   if (direccion === 'DES') return usuario.rol.includes('_des');
