@@ -139,6 +139,7 @@ _RUTAS: list[tuple[str, str, str]] = [
     ("app.api.capacitacion_routes", "/api/capacitacion", "Capacitacion"),
     ("app.api.observatorio_routes", "/api/observatorio", "Observatorio TIC"),
     ("app.api.finetuning_routes", "/api/modelos", "Modelos y Fine-tuning"),
+    ("app.api.sesion_routes", "/api/sesion", "Memoria de Sesion"),
 ]
 
 for _modulo, _prefijo, _tag in _RUTAS:

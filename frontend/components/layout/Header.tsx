@@ -95,11 +95,8 @@ export function Encabezado() {
 
         <div className="h-3.5 w-px bg-[#2D3748] hidden md:block" />
 
-        {/* Workspace */}
-        <div className="items-center gap-1.5 text-[11px] text-[#9AA0A6] hidden md:flex">
-          <HardDrive className="h-3 w-3" />
-          <span>Workspace: Conectado</span>
-        </div>
+        {/* Workspace - estado real del agente */}
+        <WorkspaceBadge />
 
         <div className="h-3.5 w-px bg-[#2D3748] hidden md:block" />
 
@@ -185,6 +182,45 @@ export function Encabezado() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Badge de estado del workspace local (Desktop Agent)
+ */
+function WorkspaceBadge() {
+  const [conectado, setConectado] = useState(false);
+
+  useEffect(() => {
+    const verificar = async () => {
+      try {
+        const usuario = obtenerUsuario();
+        if (!usuario) return;
+        const urlBase = process.env.NEXT_PUBLIC_API_URL || '/api';
+        const resp = await fetch(`${urlBase}/ws/agente/estado?usuario_id=${usuario.id || 0}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setConectado(data.conectado === true);
+        }
+      } catch {
+        setConectado(false);
+      }
+    };
+    verificar();
+    const intervalo = setInterval(verificar, 30000);
+    return () => clearInterval(intervalo);
+  }, []);
+
+  return (
+    <div className="items-center gap-1.5 text-[11px] hidden md:flex">
+      <HardDrive className="h-3 w-3" style={{ color: conectado ? '#27AE60' : '#5F6368' }} />
+      <span style={{ color: conectado ? '#27AE60' : '#9AA0A6' }}>
+        Workspace: {conectado ? 'Conectado' : 'No conectado'}
+      </span>
+      {conectado && (
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+      )}
+    </div>
   );
 }
 

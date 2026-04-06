@@ -16,6 +16,7 @@ const WebSocket = require('ws');
 const chokidar = require('chokidar');
 const Store = require('electron-store');
 const winston = require('winston');
+const fileHandler = require('./file-handler');
 
 // ---------------------------------------------------------------------------
 // Configuración
@@ -332,6 +333,12 @@ function updateConnectionStatus(status) {
 // ---------------------------------------------------------------------------
 function handleBackendMessage(mensaje) {
   switch (mensaje.tipo) {
+    case 'bienvenida':
+      logger.info('Bienvenida del servidor', { agente_id: mensaje.agente_id });
+      store.set('agenteId', mensaje.agente_id);
+      notifyRenderer('backend:message', mensaje);
+      break;
+
     case 'solicitar_archivo':
       handleFileRequest(mensaje);
       break;
@@ -340,12 +347,19 @@ function handleBackendMessage(mensaje) {
       handleListDirectoryRequest(mensaje);
       break;
 
+    case 'solicitar_escritura':
+      handleWriteRequest(mensaje);
+      break;
+
+    case 'solicitar_crear_carpeta':
+      handleMkdirRequest(mensaje);
+      break;
+
     case 'notificacion':
       showNotification(mensaje.titulo || 'CecilIA', mensaje.contenido);
       break;
 
     default:
-      // Reenviar al renderer para manejo en la interfaz
       notifyRenderer('backend:message', mensaje);
   }
 }
@@ -438,6 +452,34 @@ async function handleListDirectoryRequest(mensaje) {
       error: `Error al listar directorio: ${error.message}`,
     });
   }
+}
+
+async function handleWriteRequest(mensaje) {
+  const { ruta, contenido, solicitud_id } = mensaje;
+  const carpetas = store.get('watchedFolders') || [];
+  const resultado = fileHandler.escribirArchivo(ruta, contenido, carpetas);
+
+  sendToBackend({
+    tipo: 'respuesta_escritura',
+    solicitud_id,
+    ...(resultado.exito
+      ? { exito: true, tamano: resultado.tamano, ruta: resultado.ruta }
+      : { exito: false, error: resultado.error }),
+  });
+}
+
+async function handleMkdirRequest(mensaje) {
+  const { ruta, solicitud_id } = mensaje;
+  const carpetas = store.get('watchedFolders') || [];
+  const resultado = fileHandler.crearCarpeta(ruta, carpetas);
+
+  sendToBackend({
+    tipo: 'respuesta_crear_carpeta',
+    solicitud_id,
+    ...(resultado.exito
+      ? { exito: true, ruta: resultado.ruta }
+      : { exito: false, error: resultado.error }),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -633,6 +675,33 @@ ipcMain.handle('config:get', async (_event, key) => {
 ipcMain.handle('config:set', async (_event, key, value) => {
   store.set(key, value);
   return { ok: true };
+});
+
+ipcMain.handle('connection:status', async () => {
+  if (ws && ws.readyState === WebSocket.OPEN) return { status: 'Conectado' };
+  if (ws && ws.readyState === WebSocket.CONNECTING) return { status: 'Conectando...' };
+  return { status: 'Desconectado' };
+});
+
+// ── IPC: operaciones de archivos con sandbox ─────────────────────────────
+ipcMain.handle('files:list', async (_event, ruta) => {
+  const carpetas = store.get('watchedFolders') || [];
+  return fileHandler.listarDirectorio(ruta, carpetas);
+});
+
+ipcMain.handle('files:read', async (_event, ruta) => {
+  const carpetas = store.get('watchedFolders') || [];
+  return fileHandler.leerArchivo(ruta, carpetas);
+});
+
+ipcMain.handle('files:write', async (_event, ruta, contenido) => {
+  const carpetas = store.get('watchedFolders') || [];
+  return fileHandler.escribirArchivo(ruta, contenido, carpetas);
+});
+
+ipcMain.handle('files:mkdir', async (_event, ruta) => {
+  const carpetas = store.get('watchedFolders') || [];
+  return fileHandler.crearCarpeta(ruta, carpetas);
 });
 
 // ---------------------------------------------------------------------------

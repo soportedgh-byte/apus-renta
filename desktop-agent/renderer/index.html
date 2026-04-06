@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<!--
+  CecilIA v2 — Sistema de IA para Control Fiscal
+  Contraloria General de la Republica de Colombia
+
+  Archivo : renderer/index.html
+  Proposito: Interfaz del Desktop Agent — configuracion, carpetas vigiladas, estado conexion
+  Sprint  : 11
+  Autor   : Equipo Tecnico CecilIA — CD-TIC-CGR
+  Fecha   : Abril 2026
+-->
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>CecilIA Agent — Contraloria General de la Republica</title>
+  <style>
+    :root {
+      --fondo: #0F1419;
+      --card: #1A2332;
+      --borde: #2D3748;
+      --texto: #E8E8E8;
+      --muted: #6B7B8D;
+      --oro: #C9A84C;
+      --des: #1A5276;
+      --dvf: #1E8449;
+      --verde: #27AE60;
+      --rojo: #E74C3C;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--fondo);
+      color: var(--texto);
+      font-family: 'Segoe UI', Inter, -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--borde);
+      background: var(--card);
+      -webkit-app-region: drag;
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--oro);
+    }
+    .header .subtitle {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      -webkit-app-region: no-drag;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .connected { background: rgba(39,174,96,0.15); color: var(--verde); }
+    .connected .status-dot { background: var(--verde); }
+    .disconnected { background: rgba(231,76,60,0.15); color: var(--rojo); }
+    .disconnected .status-dot { background: var(--rojo); }
+    .connecting { background: rgba(201,168,76,0.15); color: var(--oro); }
+    .connecting .status-dot { background: var(--oro); animation: pulse 1.5s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Main content */
+    .content { flex: 1; overflow-y: auto; padding: 16px; }
+
+    /* Auth section */
+    .auth-section {
+      background: var(--card);
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .auth-section h2 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--texto);
+    }
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    input[type="text"], input[type="password"] {
+      flex: 1;
+      background: var(--fondo);
+      border: 1px solid var(--borde);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--texto);
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus { border-color: var(--oro); }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--borde);
+      background: var(--card);
+      color: var(--texto);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #243044; border-color: var(--oro); }
+    .btn-primary { background: var(--oro); color: var(--fondo); border-color: var(--oro); font-weight: 600; }
+    .btn-primary:hover { background: #D4B96A; }
+    .btn-danger { color: var(--rojo); border-color: rgba(231,76,60,0.3); }
+    .btn-danger:hover { background: rgba(231,76,60,0.1); }
+
+    /* Folders section */
+    .folders-section {
+      background: var(--card);
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .folders-section h2 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .folder-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--fondo);
+      border: 1px solid var(--borde);
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .folder-path {
+      color: var(--texto);
+      font-family: 'Consolas', 'JetBrains Mono', monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 70%;
+    }
+    .btn-remove {
+      font-size: 10px;
+      padding: 4px 8px;
+      color: var(--rojo);
+      border-color: rgba(231,76,60,0.2);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* Files browser */
+    .files-section {
+      background: var(--card);
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .files-section h2 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .breadcrumb {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-family: monospace;
+    }
+    .file-list { max-height: 250px; overflow-y: auto; }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .file-item:hover { background: rgba(201,168,76,0.1); }
+    .file-icon { font-size: 14px; width: 20px; text-align: center; }
+    .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { color: var(--muted); font-size: 10px; }
+
+    /* Footer */
+    .footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--borde);
+      background: var(--card);
+      font-size: 9px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    /* Privacy banner */
+    .privacy-banner {
+      background: rgba(201,168,76,0.08);
+      border: 1px solid rgba(201,168,76,0.2);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>CecilIA Agent</h1>
+      <span class="subtitle">Contraloria General de la Republica</span>
+    </div>
+    <div id="statusBadge" class="status-badge disconnected">
+      <span class="status-dot"></span>
+      <span id="statusText">Desconectado</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Privacy banner -->
+    <div class="privacy-banner">
+      Los datos de su auditoria se almacenan como contexto de sesion en servidores de la CGR.
+      No se utilizan para entrenar modelos de IA. Los archivos locales se procesan en streaming
+      sin copiarse permanentemente al servidor.
+    </div>
+
+    <!-- Auth -->
+    <div class="auth-section" id="authSection">
+      <h2>Autenticacion</h2>
+      <div id="authForm">
+        <div class="input-group">
+          <input type="text" id="serverUrl" placeholder="URL del servidor (ej: https://cecilia.apusinc.co)">
+        </div>
+        <div class="input-group">
+          <input type="password" id="tokenInput" placeholder="Token JWT de CecilIA">
+          <button class="btn btn-primary" onclick="conectar()">Conectar</button>
+        </div>
+        <p style="font-size:10px; color:var(--muted); margin-top:6px;">
+          Obtenga su token desde CecilIA web: Configuracion → Token de agente
+        </p>
+      </div>
+      <div id="authConnected" style="display:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span style="color:var(--verde); font-size:12px;">Autenticado correctamente</span>
+          <button class="btn btn-danger btn-remove" onclick="desconectar()">Desconectar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Watched folders -->
+    <div class="folders-section">
+      <h2>
+        Carpetas del Workspace
+        <button class="btn" onclick="agregarCarpeta()">+ Agregar carpeta</button>
+      </h2>
+      <div id="foldersList">
+        <div class="empty-state">No hay carpetas configuradas. Agregue una carpeta para comenzar.</div>
+      </div>
+    </div>
+
+    <!-- File browser -->
+    <div class="files-section" id="filesSection" style="display:none;">
+      <h2>Explorador de Archivos</h2>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Contraloria Delegada para el Sector TIC — CD-TIC-CGR<br>
+    Proyecto concebido e impulsado bajo la direccion del Dr. Omar Javier Contreras Socarras<br>
+    Circular 023 CGR — Los archivos se procesan localmente y no se almacenan en el servidor.
+  </div>
+
+  <script>
+    // ── Estado ───────────────────────────────────────────────────────────────
+    let carpetasVigiladas = [];
+    let rutaActual = null;
+
+    // ── Autenticacion ────────────────────────────────────────────────────────
+    async function conectar() {
+      const token = document.getElementById('tokenInput').value.trim();
+      if (!token) return;
+      try {
+        await window.ceciliaAgent.login(token);
+        document.getElementById('authForm').style.display = 'none';
+        document.getElementById('authConnected').style.display = 'block';
+        cargarCarpetas();
+      } catch (err) {
+        alert('Error al conectar: ' + err.message);
+      }
+    }
+
+    async function desconectar() {
+      await window.ceciliaAgent.logout();
+      document.getElementById('authForm').style.display = 'block';
+      document.getElementById('authConnected').style.display = 'none';
+      actualizarEstado({ status: 'Desconectado' });
+    }
+
+    // ── Carpetas ─────────────────────────────────────────────────────────────
+    async function cargarCarpetas() {
+      carpetasVigiladas = await window.ceciliaAgent.listarCarpetas();
+      renderizarCarpetas();
+    }
+
+    async function agregarCarpeta() {
+      carpetasVigiladas = await window.ceciliaAgent.agregarCarpeta();
+      renderizarCarpetas();
+    }
+
+    async function removerCarpeta(ruta) {
+      carpetasVigiladas = await window.ceciliaAgent.removerCarpeta(ruta);
+      renderizarCarpetas();
+    }
+
+    function renderizarCarpetas() {
+      const container = document.getElementById('foldersList');
+      if (!carpetasVigiladas || carpetasVigiladas.length === 0) {
+        container.innerHTML = '<div class="empty-state">No hay carpetas configuradas. Agregue una carpeta para comenzar.</div>';
+        document.getElementById('filesSection').style.display = 'none';
+        return;
+      }
+
+      container.innerHTML = carpetasVigiladas.map((ruta) => `
+        <div class="folder-item">
+          <span class="folder-path" title="${ruta}">${ruta}</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn" style="font-size:10px; padding:4px 8px;" onclick="explorarCarpeta('${ruta.replace(/\\/g, '\\\\')}')">Explorar</button>
+            <button class="btn btn-remove btn-danger" onclick="removerCarpeta('${ruta.replace(/\\/g, '\\\\')}')">Quitar</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ── Explorador de archivos ───────────────────────────────────────────────
+    async function explorarCarpeta(ruta) {
+      rutaActual = ruta;
+      document.getElementById('filesSection').style.display = 'block';
+      document.getElementById('breadcrumb').textContent = ruta;
+
+      try {
+        const resultado = await window.ceciliaAgent.listarDirectorio(ruta);
+        if (resultado.exito) {
+          renderizarArchivos(resultado.archivos);
+        } else {
+          document.getElementById('fileList').innerHTML =
+            `<div class="empty-state" style="color:var(--rojo);">${resultado.error}</div>`;
+        }
+      } catch (err) {
+        document.getElementById('fileList').innerHTML =
+          `<div class="empty-state" style="color:var(--rojo);">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderizarArchivos(archivos) {
+      const container = document.getElementById('fileList');
+      if (!archivos || archivos.length === 0) {
+        container.innerHTML = '<div class="empty-state">Carpeta vacia</div>';
+        return;
+      }
+
+      container.innerHTML = archivos.map((a) => {
+        const icono = a.es_directorio ? '📁' : obtenerIcono(a.extension);
+        const tamano = a.tamano ? formatearTamano(a.tamano) : '';
+        const onclick = a.es_directorio
+          ? `explorarCarpeta('${a.ruta.replace(/\\/g, '\\\\')}')`
+          : '';
+        return `
+          <div class="file-item" onclick="${onclick}">
+            <span class="file-icon">${icono}</span>
+            <span class="file-name">${a.nombre}</span>
+            <span class="file-size">${tamano}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function obtenerIcono(ext) {
+      const iconos = {
+        '.pdf': '📄', '.docx': '📝', '.xlsx': '📊', '.pptx': '📊',
+        '.txt': '📃', '.md': '📃', '.py': '🐍', '.js': '⚡',
+        '.json': '{}', '.csv': '📊', '.zip': '📦', '.rar': '📦',
+        '.png': '🖼️', '.jpg': '🖼️', '.gif': '🖼️',
+      };
+      return iconos[ext] || '📄';
+    }
+
+    function formatearTamano(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // ── Estado de conexion ───────────────────────────────────────────────────
+    function actualizarEstado(data) {
+      const badge = document.getElementById('statusBadge');
+      const text = document.getElementById('statusText');
+      text.textContent = data.status;
+
+      badge.className = 'status-badge';
+      if (data.status === 'Conectado') badge.classList.add('connected');
+      else if (data.status === 'Conectando...') badge.classList.add('connecting');
+      else badge.classList.add('disconnected');
+    }
+
+    // ── Eventos ──────────────────────────────────────────────────────────────
+    window.ceciliaAgent.onEstadoConexion(actualizarEstado);
+    window.ceciliaAgent.onConectado(() => {
+      actualizarEstado({ status: 'Conectado' });
+      document.getElementById('authForm').style.display = 'none';
+      document.getElementById('authConnected').style.display = 'block';
+    });
+
+    // Cargar estado inicial
+    (async () => {
+      try {
+        const token = await window.ceciliaAgent.obtenerConfig('token');
+        if (token) {
+          document.getElementById('authForm').style.display = 'none';
+          document.getElementById('authConnected').style.display = 'block';
+          cargarCarpetas();
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>

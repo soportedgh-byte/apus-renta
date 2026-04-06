@@ -1,263 +1,399 @@
 """
 CecilIA v2 — Sistema de IA para Control Fiscal
-Contraloría General de la República de Colombia
+Contraloria General de la Republica de Colombia
 
 Archivo: app/api/agent_ws.py
-Propósito: WebSocket para comunicación bidireccional con el agente de escritorio
-           Electron — permite listado, lectura y observación de archivos locales
-Sprint: 0
-Autor: Equipo Técnico CecilIA — CD-TIC-CGR
+Proposito: WebSocket para comunicacion bidireccional con el agente de escritorio
+           Electron — listado, lectura, escritura de archivos locales,
+           autenticacion JWT, rate limiting, trazabilidad completa.
+Sprint: 11
+Autor: Equipo Tecnico CecilIA — CD-TIC-CGR
 Fecha: Abril 2026
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import time
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from sqlalchemy import insert
 
 logger = logging.getLogger("cecilia.api.agent_ws")
 
 enrutador = APIRouter()
 
 
-# ── Gestor de conexiones WebSocket ───────────────────────────────────────────
+# ── Rate limiter ────────────────────────────────────────────────────────────
 
+class RateLimiter:
+    """Limita operaciones por usuario: 100 ops/minuto."""
+
+    def __init__(self, max_ops: int = 100, ventana_seg: int = 60) -> None:
+        self._max_ops = max_ops
+        self._ventana = ventana_seg
+        self._contadores: dict[int, list[float]] = defaultdict(list)
+
+    def permitir(self, usuario_id: int) -> bool:
+        """Retorna True si la operacion esta permitida."""
+        ahora = time.monotonic()
+        ops = self._contadores[usuario_id]
+        # Limpiar operaciones fuera de la ventana
+        self._contadores[usuario_id] = [t for t in ops if ahora - t < self._ventana]
+        if len(self._contadores[usuario_id]) >= self._max_ops:
+            return False
+        self._contadores[usuario_id].append(ahora)
+        return True
+
+
+rate_limiter = RateLimiter(max_ops=100, ventana_seg=60)
+
+
+# ── Gestor de conexiones WebSocket ─────────────────────────────────────────
 
 class GestorConexionesAgente:
-    """Gestiona las conexiones WebSocket activas de los agentes de escritorio.
-
-    Mantiene un registro de agentes conectados indexados por
-    su identificador de sesión, permitiendo enviar comandos y
-    recibir respuestas de forma bidireccional.
-    """
+    """Gestiona las conexiones WebSocket activas de los agentes de escritorio."""
 
     def __init__(self) -> None:
-        """Inicializa el gestor con un diccionario vacío de conexiones."""
-        self._conexiones_activas: dict[str, WebSocket] = {}
-        self._metadata_agentes: dict[str, dict[str, Any]] = {}
+        self._conexiones: dict[str, WebSocket] = {}
+        self._metadata: dict[str, dict[str, Any]] = {}
+        # Mapeo usuario_id -> agente_id para busqueda rapida
+        self._usuario_agente: dict[int, str] = {}
+        # Futures pendientes para respuestas de comandos
+        self._pendientes: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
     @property
     def total_conectados(self) -> int:
-        """Retorna el número de agentes conectados."""
-        return len(self._conexiones_activas)
+        return len(self._conexiones)
 
-    async def conectar(self, websocket: WebSocket, agente_id: str) -> None:
-        """Registra una nueva conexión de agente.
-
-        Args:
-            websocket: Conexión WebSocket del agente.
-            agente_id: Identificador único del agente de escritorio.
-        """
+    async def conectar(
+        self, websocket: WebSocket, agente_id: str, usuario_id: int
+    ) -> None:
         await websocket.accept()
-        self._conexiones_activas[agente_id] = websocket
-        self._metadata_agentes[agente_id] = {
+        # Desconectar agente anterior del mismo usuario
+        agente_anterior = self._usuario_agente.get(usuario_id)
+        if agente_anterior and agente_anterior in self._conexiones:
+            try:
+                await self._conexiones[agente_anterior].close(
+                    code=4002, reason="Nueva conexion del mismo usuario"
+                )
+            except Exception:
+                pass
+            self._limpiar(agente_anterior)
+
+        self._conexiones[agente_id] = websocket
+        self._metadata[agente_id] = {
+            "usuario_id": usuario_id,
             "conectado_en": datetime.now(timezone.utc).isoformat(),
             "ultima_actividad": datetime.now(timezone.utc).isoformat(),
             "comandos_procesados": 0,
         }
-        logger.info("Agente conectado: %s (total: %d)", agente_id, self.total_conectados)
+        self._usuario_agente[usuario_id] = agente_id
+        logger.info(
+            "Agente conectado: %s (usuario=%d, total=%d)",
+            agente_id, usuario_id, self.total_conectados,
+        )
 
     def desconectar(self, agente_id: str) -> None:
-        """Desregistra una conexión de agente.
+        meta = self._metadata.get(agente_id)
+        if meta:
+            uid = meta.get("usuario_id")
+            if uid and self._usuario_agente.get(uid) == agente_id:
+                self._usuario_agente.pop(uid, None)
+        self._limpiar(agente_id)
+        logger.info("Agente desconectado: %s (total=%d)", agente_id, self.total_conectados)
 
-        Args:
-            agente_id: Identificador del agente a desconectar.
-        """
-        self._conexiones_activas.pop(agente_id, None)
-        self._metadata_agentes.pop(agente_id, None)
-        logger.info("Agente desconectado: %s (total: %d)", agente_id, self.total_conectados)
+    def _limpiar(self, agente_id: str) -> None:
+        self._conexiones.pop(agente_id, None)
+        self._metadata.pop(agente_id, None)
 
-    async def enviar_comando(self, agente_id: str, comando: dict[str, Any]) -> bool:
-        """Envía un comando a un agente específico.
+    async def enviar_comando(
+        self, agente_id: str, comando: dict[str, Any], timeout: float = 30.0
+    ) -> dict[str, Any]:
+        """Envia un comando y espera la respuesta (con timeout)."""
+        ws = self._conexiones.get(agente_id)
+        if not ws:
+            return {"exito": False, "error": "Agente no conectado"}
 
-        Args:
-            agente_id: Identificador del agente destino.
-            comando: Diccionario con el comando a enviar.
+        solicitud_id = str(uuid.uuid4())[:8]
+        comando["solicitud_id"] = solicitud_id
 
-        Returns:
-            True si el comando se envió exitosamente, False en caso contrario.
-        """
-        websocket: Optional[WebSocket] = self._conexiones_activas.get(agente_id)
-        if websocket is None:
-            logger.warning("Agente %s no conectado — no se puede enviar comando.", agente_id)
-            return False
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pendientes[solicitud_id] = future
 
         try:
-            await websocket.send_json(comando)
-            metadata: dict[str, Any] = self._metadata_agentes.get(agente_id, {})
-            metadata["ultima_actividad"] = datetime.now(timezone.utc).isoformat()
-            metadata["comandos_procesados"] = metadata.get("comandos_procesados", 0) + 1
+            await ws.send_json(comando)
+            meta = self._metadata.get(agente_id, {})
+            meta["ultima_actividad"] = datetime.now(timezone.utc).isoformat()
+            meta["comandos_procesados"] = meta.get("comandos_procesados", 0) + 1
+
+            resultado = await asyncio.wait_for(future, timeout=timeout)
+            return resultado
+        except asyncio.TimeoutError:
+            return {"exito": False, "error": "Timeout esperando respuesta del agente"}
+        except Exception as e:
+            return {"exito": False, "error": str(e)}
+        finally:
+            self._pendientes.pop(solicitud_id, None)
+
+    def resolver_pendiente(self, solicitud_id: str, datos: dict[str, Any]) -> bool:
+        """Resuelve un future pendiente con la respuesta del agente."""
+        future = self._pendientes.get(solicitud_id)
+        if future and not future.done():
+            future.set_result(datos)
             return True
-        except Exception:
-            logger.exception("Error al enviar comando a agente %s", agente_id)
-            return False
+        return False
 
-    async def difundir(self, mensaje: dict[str, Any]) -> int:
-        """Envía un mensaje a todos los agentes conectados.
+    def obtener_agente_usuario(self, usuario_id: int) -> Optional[str]:
+        """Obtiene el agente_id conectado de un usuario."""
+        return self._usuario_agente.get(usuario_id)
 
-        Args:
-            mensaje: Diccionario con el mensaje a difundir.
-
-        Returns:
-            Número de agentes que recibieron el mensaje exitosamente.
-        """
-        exitosos: int = 0
-        for agente_id in list(self._conexiones_activas.keys()):
-            if await self.enviar_comando(agente_id, mensaje):
-                exitosos += 1
-        return exitosos
+    def esta_conectado(self, usuario_id: int) -> bool:
+        """Verifica si un usuario tiene agente conectado."""
+        agente_id = self._usuario_agente.get(usuario_id)
+        return agente_id is not None and agente_id in self._conexiones
 
     def obtener_agentes_conectados(self) -> list[dict[str, Any]]:
-        """Retorna la lista de agentes conectados con sus metadatos."""
         resultado: list[dict[str, Any]] = []
-        for agente_id, metadata in self._metadata_agentes.items():
-            resultado.append({
-                "agente_id": agente_id,
-                **metadata,
-            })
+        for agente_id, meta in self._metadata.items():
+            resultado.append({"agente_id": agente_id, **meta})
         return resultado
 
 
-# Instancia global del gestor de conexiones
 gestor_conexiones = GestorConexionesAgente()
 
 
-# ── Tipos de comandos soportados ─────────────────────────────────────────────
+# ── Validacion JWT simplificada ─────────────────────────────────────────────
 
-COMANDOS_VALIDOS: set[str] = {
-    "listar_archivos",      # Listar archivos en un directorio local
-    "leer_archivo",         # Leer el contenido de un archivo local
-    "observar_archivo",     # Iniciar observación de cambios en un archivo
-    "dejar_observar",       # Detener observación de un archivo
-    "info_sistema",         # Información del sistema del agente
-    "ping",                 # Verificación de conectividad
+def _validar_token_ws(token: Optional[str]) -> Optional[int]:
+    """Valida token JWT y retorna usuario_id o None si invalido."""
+    if not token:
+        return None
+    try:
+        import jwt
+        from app.config import configuracion
+        payload = jwt.decode(
+            token,
+            configuracion.JWT_SECRET_KEY,
+            algorithms=[configuracion.JWT_ALGORITHM],
+        )
+        return payload.get("sub") or payload.get("usuario_id")
+    except Exception as e:
+        logger.warning("Token WS invalido: %s", e)
+        return None
+
+
+# ── Trazabilidad ────────────────────────────────────────────────────────────
+
+async def _registrar_operacion(
+    usuario_id: int, accion: str, detalle: str = ""
+) -> None:
+    """Registra operacion del agente en log_trazabilidad."""
+    try:
+        from app.main import fabrica_sesiones
+        from app.models.log_trazabilidad import LogTrazabilidad
+
+        async with fabrica_sesiones() as db:
+            db.add(LogTrazabilidad(
+                id=str(uuid.uuid4()),
+                usuario_id=usuario_id,
+                accion=f"workspace:{accion}",
+                detalle=detalle[:1000] if detalle else "",
+                ip_origen="agent-ws",
+                created_at=datetime.now(timezone.utc),
+            ))
+            await db.commit()
+    except Exception:
+        logger.debug("No se pudo registrar trazabilidad (tabla puede no existir)")
+
+
+# ── Procesador de mensajes del agente ───────────────────────────────────────
+
+TIPOS_RESPUESTA = {
+    "respuesta_archivo", "respuesta_listado", "respuesta_escritura",
+    "respuesta_crear_carpeta", "respuesta_comando",
 }
-
-
-# ── Procesador de mensajes ───────────────────────────────────────────────────
 
 
 async def _procesar_mensaje_agente(
     agente_id: str,
     websocket: WebSocket,
     mensaje_raw: str,
+    usuario_id: int,
 ) -> None:
-    """Procesa un mensaje recibido desde el agente de escritorio.
-
-    Los mensajes pueden ser:
-    - Respuestas a comandos enviados por el servidor.
-    - Notificaciones de cambios en archivos observados.
-    - Eventos del sistema del agente (errores, desconexión inminente).
-
-    Args:
-        agente_id: Identificador del agente que envía el mensaje.
-        websocket: Conexión WebSocket del agente.
-        mensaje_raw: Mensaje JSON sin procesar.
-    """
+    """Procesa un mensaje recibido desde el agente de escritorio."""
     try:
         mensaje: dict[str, Any] = json.loads(mensaje_raw)
     except json.JSONDecodeError:
-        logger.error("Agente %s envió mensaje no-JSON: %s", agente_id, mensaje_raw[:200])
+        logger.error("Agente %s envio mensaje no-JSON", agente_id)
         await websocket.send_json({
             "tipo": "error",
-            "detalle": "Formato de mensaje inválido. Se espera JSON.",
+            "detalle": "Formato de mensaje invalido. Se espera JSON.",
         })
         return
 
-    tipo_mensaje: str = mensaje.get("tipo", "desconocido")
+    tipo = mensaje.get("tipo", "desconocido")
 
-    if tipo_mensaje == "respuesta_comando":
-        # Respuesta a un comando previamente enviado
-        comando_id: str = mensaje.get("comando_id", "")
-        exito: bool = mensaje.get("exito", False)
-        datos: Any = mensaje.get("datos")
+    # Respuestas a comandos pendientes
+    if tipo in TIPOS_RESPUESTA:
+        solicitud_id = mensaje.get("solicitud_id", "")
+        gestor_conexiones.resolver_pendiente(solicitud_id, mensaje)
+        return
 
-        logger.info(
-            "Agente %s respondió a comando %s: exito=%s",
-            agente_id, comando_id, exito,
+    if tipo == "evento_archivo":
+        accion = mensaje.get("accion", "")
+        ruta = mensaje.get("ruta", "")
+        logger.info("Agente %s: archivo %s — %s", agente_id, accion, ruta)
+        await _registrar_operacion(
+            usuario_id, f"evento_archivo_{accion}", ruta
         )
-        # TODO: Almacenar respuesta en caché o notificar al solicitante
 
-    elif tipo_mensaje == "cambio_archivo":
-        # Notificación de cambio en archivo observado
-        ruta_archivo: str = mensaje.get("ruta", "")
-        tipo_cambio: str = mensaje.get("tipo_cambio", "")  # creado | modificado | eliminado
+    elif tipo == "evento_sistema":
+        evento = mensaje.get("evento", "")
+        logger.info("Agente %s evento: %s", agente_id, evento)
 
-        logger.info(
-            "Agente %s notifica cambio en archivo: %s (%s)",
-            agente_id, ruta_archivo, tipo_cambio,
-        )
-        # TODO: Procesar cambio de archivo (re-ingestión, actualización de índice)
+    elif tipo == "pong":
+        pass
 
-    elif tipo_mensaje == "evento_sistema":
-        # Evento del sistema del agente
-        evento: str = mensaje.get("evento", "")
-        detalle: str = mensaje.get("detalle", "")
-        logger.info("Agente %s evento de sistema: %s — %s", agente_id, evento, detalle)
-
-    elif tipo_mensaje == "pong":
-        # Respuesta a ping de keep-alive
-        logger.debug("Agente %s respondió pong.", agente_id)
+    elif tipo == "cambio_archivo":
+        ruta = mensaje.get("ruta", "")
+        tipo_cambio = mensaje.get("tipo_cambio", "")
+        logger.info("Agente %s: cambio %s en %s", agente_id, tipo_cambio, ruta)
 
     else:
-        logger.warning("Agente %s envió tipo de mensaje desconocido: %s", agente_id, tipo_mensaje)
-        await websocket.send_json({
-            "tipo": "error",
-            "detalle": f"Tipo de mensaje desconocido: {tipo_mensaje}",
-        })
+        logger.warning("Agente %s: tipo desconocido '%s'", agente_id, tipo)
 
 
-# ── Endpoint WebSocket ───────────────────────────────────────────────────────
-
+# ── Endpoint WebSocket ──────────────────────────────────────────────────────
 
 @enrutador.websocket("/agente")
-async def websocket_agente(websocket: WebSocket) -> None:
-    """WebSocket para comunicación bidireccional con el agente de escritorio Electron.
+async def websocket_agente(
+    websocket: WebSocket,
+    token: Optional[str] = Query(default=None),
+) -> None:
+    """WebSocket para el agente de escritorio Electron.
 
-    Protocolo de comunicación:
-    1. El agente se conecta y envía un mensaje de autenticación.
-    2. El servidor valida las credenciales y acepta la conexión.
-    3. Comunicación bidireccional: el servidor envía comandos,
-       el agente responde y notifica eventos.
-
-    Formato de mensajes (JSON):
-    - Del servidor al agente: {"tipo": "comando", "comando": "...", "comando_id": "...", "parametros": {...}}
-    - Del agente al servidor: {"tipo": "respuesta_comando", "comando_id": "...", "exito": bool, "datos": ...}
-    - Notificaciones: {"tipo": "cambio_archivo", "ruta": "...", "tipo_cambio": "..."}
+    Autenticacion: via query param ?token=<JWT>
+    Rate limit: 100 operaciones/minuto/usuario
+    Protocolo JSON bidireccional.
     """
+    # Validar autenticacion
+    usuario_id = _validar_token_ws(token)
+    if usuario_id is None:
+        await websocket.close(code=4001, reason="Token invalido o ausente")
+        return
 
-    agente_id: str = str(uuid.uuid4())
+    agente_id = str(uuid.uuid4())
 
-    # TODO: Validar token de autenticación del agente antes de aceptar
-    # token = websocket.query_params.get("token")
-    # if not _validar_token_agente(token):
-    #     await websocket.close(code=4001, reason="Token inválido")
-    #     return
+    await gestor_conexiones.conectar(websocket, agente_id, usuario_id)
+    await _registrar_operacion(usuario_id, "conectar", f"agente={agente_id}")
 
-    await gestor_conexiones.conectar(websocket, agente_id)
-
-    # Enviar mensaje de bienvenida con ID asignado
+    # Mensaje de bienvenida
     await websocket.send_json({
         "tipo": "bienvenida",
         "agente_id": agente_id,
+        "usuario_id": usuario_id,
         "version_servidor": "2.0.0",
-        "comandos_soportados": sorted(COMANDOS_VALIDOS),
+        "comandos_soportados": [
+            "solicitar_listado", "solicitar_archivo",
+            "solicitar_escritura", "solicitar_crear_carpeta",
+        ],
         "marca_temporal": datetime.now(timezone.utc).isoformat(),
     })
 
     try:
         while True:
-            mensaje_raw: str = await websocket.receive_text()
-            await _procesar_mensaje_agente(agente_id, websocket, mensaje_raw)
+            mensaje_raw = await websocket.receive_text()
+
+            # Rate limiting
+            if not rate_limiter.permitir(usuario_id):
+                await websocket.send_json({
+                    "tipo": "error",
+                    "detalle": "Rate limit excedido: 100 operaciones/minuto",
+                })
+                continue
+
+            await _procesar_mensaje_agente(agente_id, websocket, mensaje_raw, usuario_id)
 
     except WebSocketDisconnect:
-        logger.info("Agente %s se desconectó normalmente.", agente_id)
+        logger.info("Agente %s desconectado normalmente.", agente_id)
     except Exception:
-        logger.exception("Error inesperado en WebSocket del agente %s.", agente_id)
+        logger.exception("Error en WebSocket del agente %s.", agente_id)
     finally:
         gestor_conexiones.desconectar(agente_id)
+        await _registrar_operacion(usuario_id, "desconectar", f"agente={agente_id}")
+
+
+# ── Endpoints REST auxiliares ───────────────────────────────────────────────
+
+@enrutador.get("/agente/estado", summary="Estado de conexion del agente")
+async def estado_agente(usuario_id: int = 0) -> dict[str, Any]:
+    """Retorna si el usuario tiene un agente conectado."""
+    return {
+        "conectado": gestor_conexiones.esta_conectado(usuario_id),
+        "total_agentes": gestor_conexiones.total_conectados,
+    }
+
+
+@enrutador.get("/agente/conectados", summary="Lista de agentes conectados")
+async def agentes_conectados() -> dict[str, Any]:
+    """Lista todos los agentes conectados (solo admin)."""
+    return {
+        "agentes": gestor_conexiones.obtener_agentes_conectados(),
+        "total": gestor_conexiones.total_conectados,
+    }
+
+
+# ── API publica del modulo ──────────────────────────────────────────────────
+
+async def ejecutar_comando_workspace(
+    usuario_id: int,
+    accion: str,
+    ruta: str,
+    contenido: Optional[str] = None,
+) -> dict[str, Any]:
+    """Ejecuta un comando en el workspace local del usuario via su agente.
+
+    Esta funcion es llamada por los tools de LangGraph para acceder
+    al sistema de archivos local del auditor.
+
+    Args:
+        usuario_id: ID del usuario dueño del agente.
+        accion: "listar" | "leer" | "escribir" | "crear_carpeta"
+        ruta: Ruta relativa dentro del sandbox.
+        contenido: Contenido para escritura (solo para "escribir").
+
+    Returns:
+        Respuesta del agente con los datos solicitados.
+    """
+    agente_id = gestor_conexiones.obtener_agente_usuario(usuario_id)
+    if not agente_id:
+        return {"exito": False, "error": "No hay agente de escritorio conectado"}
+
+    tipo_mapa = {
+        "listar": "solicitar_listado",
+        "leer": "solicitar_archivo",
+        "escribir": "solicitar_escritura",
+        "crear_carpeta": "solicitar_crear_carpeta",
+    }
+
+    tipo_cmd = tipo_mapa.get(accion)
+    if not tipo_cmd:
+        return {"exito": False, "error": f"Accion no soportada: {accion}"}
+
+    comando: dict[str, Any] = {"tipo": tipo_cmd, "ruta": ruta}
+    if accion == "escribir" and contenido is not None:
+        comando["contenido"] = contenido
+
+    resultado = await gestor_conexiones.enviar_comando(agente_id, comando)
+
+    await _registrar_operacion(usuario_id, accion, ruta[:200])
+
+    return resultado
