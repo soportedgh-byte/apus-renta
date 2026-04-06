@@ -578,7 +578,7 @@ class CapacitacionService:
 
 
 class _ManualDidacticoDocx(FormatoBaseCGR):
-    """Genera un manual didactico en DOCX."""
+    """Genera un manual didactico profesional en DOCX con logos CGR y CecilIA."""
 
     def __init__(self, tema: str, nivel: str, contenido: str) -> None:
         self._tema = tema
@@ -593,66 +593,239 @@ class _ManualDidacticoDocx(FormatoBaseCGR):
             },
         )
 
+    def _agregar_portada(self) -> None:
+        """Agrega portada profesional con logos CGR y CecilIA."""
+        from pathlib import Path
+        from docx.shared import Cm, Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        # Logo CGR
+        self._agregar_logo()
+
+        # Logo CecilIA
+        rutas_cecilia = [
+            Path(__file__).parent.parent / "static" / "logo-cecilia.png",
+            Path("/app/app/static/logo-cecilia.png"),
+        ]
+        for ruta in rutas_cecilia:
+            if ruta.exists():
+                p = self.doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.space_before = Pt(4)
+                p.paragraph_format.space_after = Pt(12)
+                run = p.add_run()
+                run.add_picture(str(ruta), width=Cm(3))
+                break
+
+        # Titulo del manual
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(20)
+        run = p.add_run(f"MANUAL DIDACTICO")
+        run.font.name = "Georgia"
+        run.font.size = Pt(22)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(0x1A, 0x52, 0x76)
+
+        p2 = self.doc.add_paragraph()
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run2 = p2.add_run(self._tema.upper())
+        run2.font.name = "Georgia"
+        run2.font.size = Pt(16)
+        run2.font.bold = True
+        run2.font.color.rgb = RGBColor(0x1A, 0x52, 0x76)
+
+        # Subtitulo
+        p3 = self.doc.add_paragraph()
+        p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p3.paragraph_format.space_before = Pt(10)
+        run3 = p3.add_run(f"Nivel: {self._nivel.title()} — Material de Capacitacion")
+        run3.font.name = "Calibri"
+        run3.font.size = Pt(12)
+        run3.font.color.rgb = RGBColor(0x5F, 0x63, 0x68)
+
+        # Linea dorada
+        self._agregar_linea_dorada()
+
+        # Creditos
+        p4 = self.doc.add_paragraph()
+        p4.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p4.paragraph_format.space_before = Pt(30)
+        run4 = p4.add_run("Contraloria General de la Republica")
+        run4.font.name = "Calibri"
+        run4.font.size = Pt(11)
+        run4.font.bold = True
+
+        p5 = self.doc.add_paragraph()
+        p5.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run5 = p5.add_run("Contraloria Delegada para el Sector TIC — CD-TIC")
+        run5.font.name = "Calibri"
+        run5.font.size = Pt(10)
+
+        p6 = self.doc.add_paragraph()
+        p6.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p6.paragraph_format.space_before = Pt(8)
+        run6 = p6.add_run("Proyecto concebido e impulsado por el Dr. Omar Javier Contreras Socarras")
+        run6.font.name = "Calibri"
+        run6.font.size = Pt(9)
+        run6.font.italic = True
+        run6.font.color.rgb = RGBColor(0x5F, 0x63, 0x68)
+
+        p7 = self.doc.add_paragraph()
+        p7.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p7.paragraph_format.space_before = Pt(15)
+        run7 = p7.add_run(f"Version 1.0 — {datetime.now().strftime('%B %Y').title()}")
+        run7.font.name = "Calibri"
+        run7.font.size = Pt(10)
+        run7.font.color.rgb = RGBColor(0xC9, 0xA8, 0x4C)
+
+        # Salto de pagina
+        self.doc.add_page_break()
+
     def construir(self) -> None:
-        self.agregar_titulo_seccion(f"Manual Didactico: {self._tema}")
+        # Portada profesional
+        self._agregar_portada()
+
+        # Encabezado institucional en la segunda pagina
+        self.agregar_encabezado()
+
+        # Tabla de metadata
         self.crear_tabla_clave_valor([
             ("Tema", self._tema),
             ("Nivel", self._nivel.title()),
-            ("Tipo", "Material de capacitacion — Datos ficticios"),
+            ("Tipo", "Material de capacitacion — CecilIA v2"),
             ("Fecha", datetime.now().strftime("%d/%m/%Y")),
         ])
 
-        # Secciones del contenido
-        secciones = self._contenido.split("\n\n")
-        for seccion in secciones:
-            if seccion.strip().startswith("#"):
-                titulo = seccion.strip().lstrip("#").strip()
-                self.agregar_titulo_seccion(titulo)
-            elif seccion.strip():
-                self.agregar_parrafo_justificado(seccion.strip())
+        # Renderizar contenido Markdown como secciones DOCX
+        lineas = self._contenido.split("\n")
+        for linea in lineas:
+            linea_strip = linea.strip()
+            if not linea_strip:
+                continue
+            if linea_strip.startswith("## "):
+                self.agregar_titulo_seccion(linea_strip[3:])
+            elif linea_strip.startswith("# "):
+                self.agregar_titulo_seccion(linea_strip[2:])
+            elif linea_strip.startswith("- "):
+                self.agregar_parrafo_justificado(f"  • {linea_strip[2:]}")
+            elif linea_strip.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")):
+                self.agregar_parrafo_justificado(f"  {linea_strip}")
+            elif linea_strip.startswith(">"):
+                self.agregar_parrafo_justificado(linea_strip[1:].strip())
+            else:
+                # Limpiar marcadores **bold**
+                texto_limpio = linea_strip.replace("**", "")
+                self.agregar_parrafo_justificado(texto_limpio)
 
         self.agregar_nota_ia()
 
 
-def generar_manual_docx(tema: str, nivel: str = "basico") -> bytes:
-    """Genera un manual didactico en formato DOCX."""
-    contenido = f"""# {tema}
+def generar_manual_docx(tema: str, nivel: str = "basico", llm=None) -> bytes:
+    """Genera un manual didactico profesional en formato DOCX.
 
-## Introduccion
+    Si el LLM esta disponible, genera contenido especializado.
+    Si no, usa contenido de ejemplo mejorado.
+    """
+    contenido = None
 
-Este manual explica de forma clara y sencilla el tema de **{tema}** para funcionarios en proceso de capacitacion.
+    # Intentar generar contenido con LLM
+    if llm:
+        try:
+            import asyncio
+            prompt = (
+                f"Eres un experto en control fiscal colombiano y pedagogia. "
+                f"Genera un manual didactico de nivel {nivel} sobre: '{tema}'. "
+                f"El manual es para capacitacion de funcionarios de la Contraloria General de la Republica (CGR). "
+                f"\nEstructura requerida (usa formato Markdown con ## para secciones):\n"
+                f"## Introduccion\n(Contexto del tema en el control fiscal colombiano)\n"
+                f"## Marco normativo\n(Leyes, decretos y normas aplicables: cita Ley 42/1993, Ley 610/2000, Decreto 403/2020, ISSAI, etc.)\n"
+                f"## Conceptos clave\n(Definiciones y explicaciones detalladas)\n"
+                f"## Procedimiento paso a paso\n(Como se aplica en la practica auditora)\n"
+                f"## Ejemplo practico\n(Caso con datos FICTICIOS de una entidad ejemplo)\n"
+                f"## Errores frecuentes\n(Los 5-7 errores mas comunes y como evitarlos)\n"
+                f"## Recomendaciones del auditor experimentado\n(Tips practicos)\n"
+                f"## Normativa de referencia\n(Lista completa de normas aplicables)\n"
+                f"\nIMPORTANTE: Todos los datos y ejemplos deben ser FICTICIOS. "
+                f"Cita normatividad REAL colombiana. Escribe en espanol."
+            )
+            resp = asyncio.get_event_loop().run_until_complete(
+                asyncio.to_thread(llm.invoke, prompt)
+            ) if asyncio.get_event_loop().is_running() else llm.invoke(prompt)
+            contenido = resp.content if hasattr(resp, "content") else str(resp)
+        except Exception as e:
+            logger.warning("No se pudo generar contenido con LLM para manual: %s", e)
 
-Todos los datos y ejemplos son **ficticios** y se usan unicamente con fines educativos.
+    if not contenido:
+        contenido = f"""## Introduccion
 
-## Que es?
+Este manual explica de forma clara y sencilla el tema de {tema} para funcionarios de la Contraloria General de la Republica en proceso de capacitacion.
 
-{tema} es un concepto fundamental en el control fiscal colombiano. Veamos paso a paso...
+Todos los datos y ejemplos son ficticios y se usan unicamente con fines educativos, conforme a la Circular 023 de la CGR sobre uso responsable de inteligencia artificial.
+
+## Marco normativo
+
+El control fiscal en Colombia se fundamenta en las siguientes normas:
+
+- Constitucion Politica de Colombia, Articulos 267 a 274: Establece las funciones de la Contraloria General de la Republica
+- Ley 42 de 1993: Organiza el sistema de control fiscal financiero
+- Ley 610 de 2000: Regula el proceso de responsabilidad fiscal
+- Decreto 403 de 2020: Desarrolla los principios del control fiscal
+- ISSAI 100, 200, 300 y 400: Normas internacionales de auditoria del sector publico
+- Circular 023 de la CGR: Orientaciones sobre el uso de inteligencia artificial
+
+## Conceptos clave
+
+{tema} es un concepto fundamental en el control fiscal colombiano. Comprende los procesos, procedimientos y metodologias que los auditores de la CGR aplican para vigilar la gestion de los recursos publicos.
+
+Los auditores deben entender este tema para cumplir con su mision constitucional de proteger el patrimonio publico de todos los colombianos.
+
+## Procedimiento paso a paso
+
+1. Identificar el alcance del tema dentro de la auditoria
+2. Revisar la normatividad aplicable
+3. Recopilar evidencia documental
+4. Analizar la informacion recopilada
+5. Documentar los hallazgos siguiendo los 4 elementos (condicion, criterio, causa, efecto)
+6. Comunicar resultados a la entidad auditada
+7. Hacer seguimiento a los planes de mejoramiento
 
 ## Ejemplo practico
 
-Supongamos que estamos auditando a la **Entidad Ejemplo S.A.** (NIT 900.000.001-1) con un presupuesto de $50.000 millones para la vigencia 2025.
+Supongamos que estamos auditando a la Entidad Ejemplo S.A. (NIT 900.000.001-1) con un presupuesto de $50.000 millones para la vigencia 2025.
 
-## Errores comunes
+Al revisar la ejecucion presupuestal, encontramos que el 15% de los recursos asignados al rubro de inversion no tienen soporte documental adecuado. Esto constituye un posible hallazgo con connotacion administrativa y fiscal.
 
-1. No documentar adecuadamente las fuentes
-2. Usar datos desactualizados
-3. No verificar la coherencia de las cifras
-4. Omitir la fundamentacion normativa
+## Errores frecuentes
 
-## Tips del auditor experimentado
+1. No documentar adecuadamente las fuentes de informacion
+2. Usar datos desactualizados o sin verificar
+3. No verificar la coherencia de las cifras reportadas
+4. Omitir la fundamentacion normativa en los hallazgos
+5. No comunicar oportunamente los resultados preliminares
+6. Confundir observaciones con hallazgos
+7. No aplicar el principio de materialidad
 
-- Siempre verifica contra la norma original
-- Documenta todo, incluso lo que parece obvio
-- Pide ayuda cuando no entiendas algo
-- Usa CecilIA para resolver dudas rapidas
+## Recomendaciones del auditor experimentado
 
-## Normativa relacionada
+- Siempre verifica contra la norma original, no dependas de interpretaciones de terceros
+- Documenta todo, incluso lo que parece obvio en el momento
+- Pide ayuda cuando no entiendas algo, la colaboracion entre auditores es fundamental
+- Usa CecilIA para resolver dudas rapidas sobre normatividad y procedimientos
+- Mantente actualizado con las circulares y directivas de la CGR
 
-- Constitucion Politica, Art. 267-268
-- Ley 42 de 1993
-- Decreto 403 de 2020
-- ISSAI 100, 200, 300, 400
+## Normativa de referencia
+
+- Constitucion Politica de Colombia, Art. 267-274
+- Ley 42 de 1993 (Control fiscal financiero)
+- Ley 610 de 2000 (Responsabilidad fiscal)
+- Decreto 403 de 2020 (Principios del control fiscal)
+- Decreto 2037 de 2019 (Estructura de la CGR)
+- ISSAI 100, 200, 300, 400 (Normas internacionales)
+- Guia de Auditoria Financiera de la CGR (GAF)
+- Circular 023 de la CGR (Uso de IA)
 """
+
     generador = _ManualDidacticoDocx(tema, nivel, contenido)
     return generador.generar_bytes()
 

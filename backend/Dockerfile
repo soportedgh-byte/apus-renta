@@ -30,7 +30,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libpq5 \
         tesseract-ocr \
-        tesseract-ocr-spa && \
+        tesseract-ocr-spa \
+        ffmpeg && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 1001 cecilia && \
     useradd --uid 1001 --gid cecilia --shell /bin/bash --create-home cecilia

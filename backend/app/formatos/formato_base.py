@@ -196,6 +196,7 @@ class FormatoBaseCGR:
             Path(__file__).parent.parent / "static" / "logo-cgr.png",
             Path(__file__).parent.parent.parent / "static" / "logo-cgr.png",
             Path(__file__).parent.parent / "assets" / "logo-cgr.png",
+            Path("/app/app/static/logo-cgr.png"),
         ]
         for ruta in rutas_logo:
             if ruta.exists():

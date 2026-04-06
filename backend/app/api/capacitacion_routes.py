@@ -219,17 +219,19 @@ async def obtener_quizzes(
 
 @enrutador.post("/generar-manual")
 async def generar_manual(datos: GenerarManualRequest) -> dict[str, Any]:
-    """Genera un manual DOCX didactico sobre el tema solicitado."""
+    """Genera un manual DOCX profesional con logos CGR y contenido generado por IA."""
     from app.services.capacitacion_service import generar_manual_docx
     import base64
 
-    docx_bytes = generar_manual_docx(tema=datos.tema, nivel=datos.nivel)
+    llm = _obtener_llm_capacitacion()
+    docx_bytes = generar_manual_docx(tema=datos.tema, nivel=datos.nivel, llm=llm)
+    nombre_limpio = datos.tema.replace(" ", "_").replace("/", "_")[:50]
     return {
         "tipo": "manual_docx",
         "tema": datos.tema,
         "nivel": datos.nivel,
         "contenido_base64": base64.b64encode(docx_bytes).decode("utf-8"),
-        "nombre_archivo": f"Manual_{datos.tema}_{datos.nivel}.docx",
+        "nombre_archivo": f"Manual_CGR_{nombre_limpio}_{datos.nivel}.docx",
     }
 
 
@@ -446,6 +448,16 @@ async def registrar_resultado_repaso(
 
 # ── Audio: podcasts y explicaciones con edge-tts ─────────────────────────────
 
+def _obtener_llm_capacitacion():
+    """Obtiene instancia del LLM configurado para capacitacion."""
+    try:
+        from app.llm import obtener_llm
+        return obtener_llm()
+    except Exception as e:
+        logger.warning("No se pudo obtener LLM para capacitacion: %s", e)
+        return None
+
+
 @enrutador.post("/generar-audio")
 async def generar_audio_podcast(
     datos: GenerarAudioRequest,
@@ -453,17 +465,19 @@ async def generar_audio_podcast(
 ) -> dict[str, Any]:
     """Genera audio MP3 tipo podcast con 2 voces sobre un tema."""
     from app.services.audio_service import AudioService
-    servicio = AudioService()
+    import base64
 
-    # Generar script
+    llm = _obtener_llm_capacitacion()
+    servicio = AudioService(llm=llm)
+
+    # Generar script con LLM + RAG
     script = await servicio.generar_script_podcast(
         tema=datos.tema, duracion=datos.duracion
     )
 
-    # Intentar generar audio
+    # Intentar generar audio MP3 con edge-tts
     try:
         audio_bytes, duracion = await servicio.generar_audio_podcast(script)
-        import base64
         return {
             "tipo": "podcast_audio",
             "tema": datos.tema,
@@ -492,11 +506,13 @@ async def generar_explicacion_audio(
 ) -> dict[str, Any]:
     """Genera explicacion narrada de un solo locutor."""
     from app.services.audio_service import AudioService
-    servicio = AudioService()
+    import base64
+
+    llm = _obtener_llm_capacitacion()
+    servicio = AudioService(llm=llm)
 
     try:
         audio_bytes, duracion = await servicio.generar_explicacion_audio(tema, voz)
-        import base64
         return {
             "tipo": "explicacion_audio",
             "tema": tema,
@@ -523,7 +539,8 @@ async def generar_flashcards(
 ) -> dict[str, Any]:
     """Genera set de flashcards sobre un tema con taxonomia de Bloom."""
     from app.services.contenido_leccion_service import ContenidoLeccionService
-    servicio = ContenidoLeccionService()
+    llm = _obtener_llm_capacitacion()
+    servicio = ContenidoLeccionService(llm=llm)
     tarjetas = await servicio.generar_flashcards(
         tema=datos.tema, num_tarjetas=datos.num_tarjetas
     )
@@ -541,17 +558,26 @@ async def generar_flashcards(
 async def generar_infografia(
     datos: GenerarInfografiaRequest,
 ) -> dict[str, Any]:
-    """Genera diagrama Mermaid para visualizacion de un tema."""
+    """Genera diagrama Mermaid como imagen renderizada (SVG inline)."""
     from app.services.contenido_leccion_service import ContenidoLeccionService
-    servicio = ContenidoLeccionService()
+    import base64 as b64
+
+    llm = _obtener_llm_capacitacion()
+    servicio = ContenidoLeccionService(llm=llm)
     mermaid_code = await servicio.generar_infografia_mermaid(
         tema=datos.tema, tipo_diagrama=datos.tipo_diagrama
     )
+
+    # Generar URL de mermaid.ink para renderizado de imagen
+    mermaid_b64 = b64.urlsafe_b64encode(mermaid_code.encode("utf-8")).decode("utf-8")
+    imagen_url = f"https://mermaid.ink/img/base64:{mermaid_b64}"
+
     return {
         "tipo": "infografia_mermaid",
         "tema": datos.tema,
         "tipo_diagrama": datos.tipo_diagrama,
         "mermaid": mermaid_code,
+        "imagen_url": imagen_url,
     }
 
 
